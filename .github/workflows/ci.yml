@@ -1,0 +1,53 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: 语法 / JSON / 词表自检
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        node: ['22.x', '24.x']
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+
+      # 本插件没有运行时依赖，不需要 install。
+      - name: 语法检查
+        run: |
+          node --check lib/index.js
+          node --check lib/phrases.js
+          node --check scripts/check-phrases.mjs
+          node --check test/acceptance.mjs
+
+      - name: JSON 校验
+        run: |
+          node -e "for (const f of ['package.json','locale/en.json','locale/zh.json','examples/phrases.example.json']) { JSON.parse(require('node:fs').readFileSync(f, 'utf8')); console.log('ok', f); }"
+
+      - name: 词表自检
+        run: node scripts/check-phrases.mjs
+
+      - name: 确认发布必需的字段
+        run: |
+          node -e "
+            const p = JSON.parse(require('node:fs').readFileSync('package.json', 'utf8'));
+            const must = ['name', 'version', 'description', 'license', 'type', 'main', 'exports', 'files'];
+            const missing = must.filter((k) => p[k] === undefined);
+            if (missing.length) { console.error('缺失字段:', missing.join(', ')); process.exit(1); }
+            if (p.dsh?.bundle?.patch !== './cordis.patch.yml') { console.error('dsh.bundle.patch 不正确'); process.exit(1); }
+            if (p.exports['./locale/*.json'] !== './locale/*.json') { console.error('缺少 locale 导出'); process.exit(1); }
+            console.log('ok', p.name, p.version);
+          "

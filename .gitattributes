@@ -1,0 +1,21 @@
+# 统一换行符，避免 Windows / macOS / Linux 之间的 diff 噪音。
+# 本仓库所有文本文件都以 LF 提交，UTF-8 无 BOM。
+
+* text=auto eol=lf
+
+*.ps1   text eol=crlf
+*.cmd   text eol=crlf
+*.bat   text eol=crlf
+
+*.png   binary
+*.jpg   binary
+*.jpeg  binary
+*.gif   binary
+*.ico   binary
+*.tgz   binary
+*.zip   binary
+
+# 打包产物与依赖目录不参与语言统计
+dsh-plugin-zh-cn-*.tgz  linguist-generated
+package-lock.json       linguist-generated
+pnpm-lock.yaml          linguist-generated

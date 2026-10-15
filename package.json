@@ -1,0 +1,61 @@
+{
+  "name": "dsh-plugin-zh-cn",
+  "version": "1.4.0",
+  "description": "Render installed DeepSeek Harness plugin titles and descriptions in Simplified Chinese through DSH's own locale dictionaries, without touching any plugin code.",
+  "license": "MIT",
+  "author": "dsh-plugin-zh-cn contributors",
+  "type": "module",
+  "main": "lib/index.js",
+  "exports": {
+    ".": "./lib/index.js",
+    "./locale/*.json": "./locale/*.json",
+    "./cordis.patch.yml": "./cordis.patch.yml",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib",
+    "locale",
+    "scripts",
+    "examples",
+    "test",
+    "cordis.patch.yml",
+    "README.md",
+    "CHANGELOG.md",
+    "CONTRIBUTING.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "check": "node scripts/check-phrases.mjs",
+    "check:syntax": "node --check lib/index.js && node --check lib/phrases.js && node --check scripts/check-phrases.mjs",
+    "test": "node test/acceptance.mjs",
+    "prepack": "node scripts/check-phrases.mjs"
+  },
+  "keywords": [
+    "dsh-plugin",
+    "deepseek-harness",
+    "dsh",
+    "locale",
+    "localized-text",
+    "zh-cn",
+    "chinese",
+    "i18n",
+    "localization",
+    "cordis"
+  ],
+  "engines": {
+    "node": "^22.19.0 || >=24.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Daneel0001/dsh-plugin-zh-cn.git"
+  },
+  "homepage": "https://github.com/Daneel0001/dsh-plugin-zh-cn#readme",
+  "bugs": {
+    "url": "https://github.com/Daneel0001/dsh-plugin-zh-cn/issues"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  }
+}

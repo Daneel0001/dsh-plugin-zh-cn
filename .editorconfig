@@ -1,0 +1,19 @@
+# 统一的编辑约定；本仓库所有文本文件都使用 LF 与 UTF-8 无 BOM。
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+indent_style = space
+indent_size = 2
+
+[*.md]
+trim_trailing_whitespace = false
+
+[*.{yml,yaml}]
+indent_size = 2
+
+[*.ps1]
+end_of_line = crlf

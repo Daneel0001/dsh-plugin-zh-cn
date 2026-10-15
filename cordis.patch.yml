@@ -1,0 +1,11 @@
+# dsh-plugin-zh-cn bundle patch.
+#
+# Registers the plugin's host entry. The host half is all this plugin needs:
+# at startup it gives every installed plugin that is missing one an official
+# `locale/en.json` + `locale/<lang>.json` pair, which is exactly how DSH's own
+# bundled plugins present localized titles and descriptions. No browser-side
+# module is required.
+
+- insert:
+    - id: zh-cn-plugin-locale
+      name: dsh-plugin-zh-cn
