@@ -615,6 +615,45 @@ await test('install reports skipped when the services are absent', () => {
   assert.equal(injector.status.inventoryList, 'pending');
 });
 
+await test('projectBundleList rewrites bundle meta and its rows without mutating input', () => {
+  const injector = createInjector({ lookup: (key) => ({ title: `中:${key}`, description: `说明:${key}` }) });
+  const bundles = [
+    {
+      name: 'billion-context',
+      meta: { title: 'billion-context' },
+      rows: [{ moduleName: 'billion-context', meta: { title: 'billion-context' } }],
+    },
+  ];
+  const next = injector.projectBundleList(bundles);
+  assert.deepEqual(next[0].meta.title, { en: 'billion-context', zh: '中:billion-context' });
+  assert.deepEqual(next[0].rows[0].meta.title, { en: 'billion-context', zh: '中:billion-context' });
+  // 原对象保持不动（绝不污染宿主自己的数据）
+  assert.equal(bundles[0].meta.title, 'billion-context');
+});
+
+await test('projectEntryList rewrites listPlugins entries', () => {
+  const injector = createInjector({ lookup: (key) => ({ title: `中:${key}`, description: `说明:${key}` }) });
+  const next = injector.projectEntryList([{ moduleName: 'dsh-browser', enabled: true, meta: { title: 'dsh-browser' } }]);
+  assert.deepEqual(next[0].meta.title, { en: 'dsh-browser', zh: '中:dsh-browser' });
+  assert.equal(next[0].enabled, true, 'enabled（右侧开关）必须原样保留');
+});
+
+await test('probe reports which injection paths actually catch a call', async () => {
+  const packages = new FakePackages({ p: { title: 'p' } });
+  const inventory = new FakeInventory(pluginEntries);
+  const injector = createInjector({ lookup: () => undefined });
+  try {
+    injector.install(makeCtx({ packages, inventory }));
+    const result = await injector.probe(makeCtx({ packages, inventory }));
+    assert.equal(result.metaOf, 1, 'metaOf 这条通路应当被接住');
+    assert.equal(result.inventoryList, 1, 'pluginInventory.list 这条通路应当被接住');
+    assert.equal(result.listBundles, 0, '没有 pluginManager 时应当是 0');
+    assert.equal(result.listPlugins, 0);
+  } finally {
+    injector.dispose();
+  }
+});
+
 /* ──────────────────────────── apply（集成） ──────────────────────────── */
 
 section('apply (integration)');
@@ -653,7 +692,11 @@ if (applyModule !== undefined) {
       });
       apply(ctx, { cacheFile: join(dir, CACHE_FILE_NAME), delayMs: 0 });
 
-      assert.equal(await waitFor(() => existsSync(join(dir, CACHE_FILE_NAME))), true, 'cache file was never written');
+      assert.equal(
+        await waitFor(() => entryCount(join(dir, CACHE_FILE_NAME)) >= 2),
+        true,
+        '两条待翻译的插件没有写进缓存',
+      );
 
       const snapshot = await inventory.list();
       assert.deepEqual(snapshot.entries[0].meta.title, { en: 'billion-context', zh: '十亿级上下文插件' });
@@ -677,7 +720,7 @@ if (applyModule !== undefined) {
         makeCtx({ inventory: new FakeInventory(pluginEntries), llm: first, selection: { provider: 'p', model: 'm' }, profileDir: dir }),
         { cacheFile: join(dir, CACHE_FILE_NAME), delayMs: 0 },
       );
-      assert.equal(await waitFor(() => existsSync(join(dir, CACHE_FILE_NAME))), true);
+      assert.equal(await waitFor(() => entryCount(join(dir, CACHE_FILE_NAME)) >= 2), true);
       assert.equal(first.calls.length, 2);
 
       const second = makeLlm(goodReply);
@@ -810,7 +853,7 @@ if (applyModule !== undefined) {
         maxPerStart: 1,
         delayMs: 0,
       });
-      assert.equal(await waitFor(() => existsSync(join(dir, CACHE_FILE_NAME))), true);
+      assert.equal(await waitFor(() => entryCount(join(dir, CACHE_FILE_NAME)) >= 1), true);
       const disk = JSON.parse(readFileSync(join(dir, CACHE_FILE_NAME), 'utf8'));
       assert.equal(Object.keys(disk.entries).length, 1, 'maxPerStart=1 时只应翻一条');
       assert.equal(llm.calls.length, 1);

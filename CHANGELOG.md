@@ -2,6 +2,29 @@
 
 本文件记录所有值得注意的变更。版本号遵循[语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [2.0.6] — 2026-10-16
+
+### 修复
+
+- **把注入铺到界面真正读取的每一条通路上。** 「官方 8 / 已安装 11」这种分组结构对应的是
+  `pluginManager.listBundles()`，而此前只包装了 `pluginPackages.metaOf` 与
+  `pluginInventory.list`，漏掉了 bundle 这条主路。现在四条通路全铺：
+  `pluginPackages.metaOf`、`pluginManager.listBundles`、`pluginManager.listPlugins`、
+  `pluginInventory.list`（每条都实例 + 原型都装、动态透传 `this`）。
+- **新增注入自检 `lastRender`**（写进 `local-cache.json`）：记录四条通路各自的安装结果、
+  启动 1.5 秒后主动探针（probe）是否真的被调用到、以及界面渲染时投影的命中 / 未命中计数
+  与样本。以后「界面怎么还是英文」不必再猜：
+  - `install.* = skipped` → 那层皮没贴上；
+  - `probe.* = 0` → 贴上了，但调用没经过我们（界面走的是另一条路）；
+  - `calls > 0` 而 `hits = 0` → 走到了，但缓存里没有对应译文。
+- 修掉 `apply` 里补装定时器的 `unref()` —— 与 `sleep()` 那次同一个教训：unref 过的定时器
+  在事件循环空转时不会触发，补装和探针都可能永远不执行。
+
+### 测试
+
+- 新增 3 项：bundle 列表投影、`listPlugins` 投影（并断言 `enabled` 原样保留、
+  不影响右侧开关）、probe 计数。共 **53 项全绿**。
+
 ## [2.0.5] — 2026-10-16
 
 ### 新增
