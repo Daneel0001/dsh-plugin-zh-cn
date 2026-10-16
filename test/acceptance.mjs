@@ -432,6 +432,25 @@ await test('parseTranslation rejects an empty reply', () => {
   assert.throws(() => parseTranslation('{}'), TranslationError);
 });
 
+await test('parseTranslation recovers a labeled plain-text reply', () => {
+  assert.deepEqual(parseTranslation('名称：十亿上下文\n描述：小窗口也能塞下超大仓库'), {
+    title: '十亿上下文',
+    description: '小窗口也能塞下超大仓库',
+  });
+});
+
+await test('parseTranslation recovers a bare two-line plain-text reply', () => {
+  assert.deepEqual(parseTranslation('浏览器自动化\n基于 Playwright 驱动真实网页'), {
+    title: '浏览器自动化',
+    description: '基于 Playwright 驱动真实网页',
+  });
+});
+
+await test('parseTranslation refuses to guess when the reply looks like reasoning', () => {
+  const noisy = ['先读这段英文。', '它讲的是壁纸引擎。', '需要翻成中文。', '还要保留版本号。', '最后输出 JSON。'].join('\n');
+  assert.throws(() => parseTranslation(noisy), TranslationError, '啰嗦的多半是思考过程，不该猜');
+});
+
 await test('translatePlugin streams a request and returns the translation', async () => {
   const llm = makeLlm(goodReply);
   const result = await translatePlugin({

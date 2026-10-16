@@ -173,8 +173,8 @@ resolveText(text) {
   config:
     enabled: true          # 总开关
     strict: true           # 名称+描述都有译文才写入缓存
-    timeoutMs: 30000       # 单条翻译超时
-    maxTokens: 512         # 单条翻译输出上限
+    timeoutMs: 60000       # 单条翻译超时（描述很长的插件要给足时间）
+    maxTokens: 4096        # 单条翻译输出上限（推理型模型可能先吐思考再给 JSON）
     provider: ''           # 留空 = 用「设置 → 模型」里的默认模型
     model: ''
     cacheFile: ''          # 留空 = <profile>/dsh-plugin-zh-cn/local-cache.json
@@ -182,6 +182,7 @@ resolveText(text) {
     maxPerStart: 500       # 每次启动最多新翻几个插件（默认实质上不限，一个全新 profile 也就几百条）
     delayMs: 200           # 两条翻译之间的间隔
     saveEvery: 8           # 每翻译成功几条落一次盘，中途退出不丢已完成的部分
+    retry: 3               # 每条最多尝试几次（设为 1 即关闭重试）
     debug: false           # 把每条翻译结果写进 debug 日志
 ```
 
