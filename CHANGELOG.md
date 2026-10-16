@@ -2,6 +2,60 @@
 
 本文件记录所有值得注意的变更。版本号遵循[语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [2.0.5] — 2026-10-16
+
+### 新增
+
+- **失败自动重试。** 单条翻译失败（偶发的 `llm.stream()` 卡住、模型返回的 JSON 抖一下、
+  严格模式下描述没译出来）会**再试一次**。新增 `retry` 配置项，默认 2 次，设为 1 即关闭重试。
+
+### 实测（真实桌面版，一轮完整运行）
+
+- `total: 204 / pending: 94 / translated: 83 / failed: 11`，`model` 正确取到
+  `deepseek-account/deepseek-flash`；缓存条目由 72 条增长到 **172 条**。
+- 译文示例：`billion-context` → 「十亿上下文」、`dsh-browser` → 「浏览器自动化」、
+  `dsh-thinking-language` → 「思考语言切换」、`dsh-univer-office` → 「Univer 办公协同」。
+- 这一轮暴露出的 11 条偶发失败，正是本次重试要解决的问题。
+
+## [2.0.4] — 2026-10-16
+
+### 修复
+
+- **修掉「重启后一条都没翻译成功」的缺陷。** 诊断数据（`local-cache.json` 里的 `lastRun`）
+  显示 `pending: 114, translated: 0, failed: 114, model: "/"`：插件在**启动早期**去问
+  `agentDefaultModel.currentSelection()` 时，用户在「设置 → 模型」里选定的模型**还没就绪**，
+  于是 114 条全部以「没有模型」失败 —— 英文原文得以保留（界面没崩），但一条也没变中文。
+  现在改为：拿不到模型就**轮询等待**（最多约 60 秒）等它就绪再开翻；确实等不到才落一次
+  `phase: "no-model"` 并给出明确提示，不再把每条都算成失败。
+- **修掉 `sleep()` 里 `timer.unref()` 造成的等待永久挂起。** unref 过的定时器在事件循环
+  空转时根本不触发，`resolveSelectionWithWait` 会直接卡死（测试里表现为
+  `unsettled top-level await`）。等待期间不再 unref，退出时由 `signal.abort()` 结束。
+
+### 变更
+
+- `maxPerStart` 默认值由 20 提高到 500：一次启动就能翻完全部待翻译插件。
+
+### 测试
+
+- 新增两项：模型延迟出现时能轮询到、超时后返回 `undefined` 而不是硬翻。共 49 项全绿。
+
+## [2.0.3] — 2026-10-16
+
+### 新增
+
+- **`local-cache.json` 新增 `lastRun` 字段**，记录最近一轮扫描/翻译的状态：
+  `phase`（start / running / done / aborted）、`total`、`pending`、`translated`、`failed`、
+  `cachedHits`、`skippedLocalized`、`notTranslatable`、`current`（当前正在处理的包名）
+  与 `lastError`。
+  「某个插件为什么没变中文」这类问题，看一眼这个字段就有答案，不用去翻进程日志。
+- 每轮开始时会**先落一次盘**（写 `phase: "start"` 的快照），因此即使随后某条翻译卡住，
+  也一定能从磁盘上看到这一轮到底准备翻多少条。
+
+### 说明
+
+- 排查中发现：**`set_bundle` 热重载不会让 Node 重新加载插件模块**（ESM 模块缓存命中），
+  所以换了版本的插件必须**重启 DSH** 才会真正换成新代码。这一点已写进 README。
+
 ## [2.0.2] — 2026-10-16
 
 ### 修复

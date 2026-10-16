@@ -66,6 +66,15 @@ function tempDir(label) {
   return mkdtempSync(join(tmpdir(), `zh-cn-${label}-`));
 }
 
+/** 缓存文件里的条目数；文件不存在或读不出来都算 0。 */
+function entryCount(file) {
+  try {
+    return Object.keys(JSON.parse(readFileSync(file, 'utf8')).entries).length;
+  } catch {
+    return 0;
+  }
+}
+
 /* ──────────────────────────────── 假 DSH ──────────────────────────────── */
 
 function makeLogger() {
@@ -619,7 +628,7 @@ try {
 }
 
 if (applyModule !== undefined) {
-  const { apply } = applyModule;
+  const { apply, resolveSelectionWithWait } = applyModule;
 
   /** 轮询等待条件成立。 */
   async function waitFor(check, ms = 4000) {
@@ -699,7 +708,7 @@ if (applyModule !== undefined) {
       await new Promise((done) => setTimeout(done, 400));
       const snapshot = await inventory.list();
       assert.equal(snapshot.entries[0].meta.title, 'billion-context');
-      assert.equal(existsSync(join(dir, CACHE_FILE_NAME)), false);
+      assert.equal(entryCount(join(dir, CACHE_FILE_NAME)), 0, '失败的翻译绝不能写进缓存');
       assert.equal(
         logger.lines.some((line) => line.includes('rate-limited')),
         true,
@@ -775,7 +784,7 @@ if (applyModule !== undefined) {
       // 插件必须安静降级成「什么都不做」，而不是把异常抛回 DSH 的启动链路。
       apply(makeCtx({ profileDir: dir, logger }), { cacheFile: join(dir, CACHE_FILE_NAME), delayMs: 0 });
       await new Promise((done) => setTimeout(done, 200));
-      assert.equal(existsSync(join(dir, CACHE_FILE_NAME)), false);
+      assert.equal(entryCount(join(dir, CACHE_FILE_NAME)), 0, '没有任何服务时不应该翻译出任何条目');
       assert.equal(
         logger.lines.some((line) => line.includes('已加载')),
         true,
@@ -841,6 +850,74 @@ if (applyModule !== undefined) {
     assert.equal(messy.maxPerStart, DEFAULTS.maxPerStart, 'NaN 退回默认值');
     assert.equal(messy.cacheFile, 'C:/tmp/cache.json', '字符串被 trim');
     assert.deepEqual(messy.seedFiles, ['a.json'], '只保留非空字符串');
+  });
+
+  await test('resolveSelectionWithWait polls until the default model shows up', async () => {
+    let calls = 0;
+    const ctx = {
+      get: () => ({
+        currentSelection: () => (++calls < 3 ? {} : { provider: 'p', model: 'm' }),
+      }),
+    };
+    const got = await resolveSelectionWithWait({ ctx, config: {}, attempts: 6, intervalMs: 5 });
+    assert.equal(got?.provider, 'p', '应当等到 provider 出现');
+    assert.equal(got?.model, 'm', '应当等到 model 出现');
+    assert.ok(calls >= 3, '应当一直轮询到模型就绪');
+  });
+
+  await test('resolveSelectionWithWait gives up instead of translating without a model', async () => {
+    const ctx = { get: () => ({ currentSelection: () => ({}) }) };
+    const got = await resolveSelectionWithWait({ ctx, config: {}, attempts: 2, intervalMs: 5 });
+    assert.equal(got, undefined, '超时后返回 undefined，由调用方保留英文原文');
+  });
+
+  await test('a flaky model is retried and still ends up translated', async () => {
+    const dir = tempDir('retry');
+    // 第一次调用直接报错、第二次才给出译文 —— 模拟 llm.stream 的偶发抖动。
+    let attempts = 0;
+    const flaky = {
+      stream() {
+        attempts += 1;
+        return (async function* stream() {
+          if (attempts === 1) {
+            yield {
+              type: 'finish',
+              reason: { kind: 'error', failure: { code: 'flaky', message: 'first try blows up' } },
+            };
+            return;
+          }
+          yield { type: 'block-start', index: 0, blockType: 'text' };
+          yield { type: 'text-delta', index: 0, text: goodReply };
+          yield { type: 'block-end', index: 0, block: { type: 'text', text: goodReply } };
+          yield { type: 'finish', reason: { kind: 'stop' } };
+        })();
+      },
+    };
+    const inventory = new FakeInventory([
+      { moduleName: 'flaky-plugin', meta: { title: 'Flaky Plugin', description: 'A plugin that fails once' } },
+    ]);
+    const cacheFile = join(dir, CACHE_FILE_NAME);
+    const ctx = makeCtx({
+      inventory,
+      llm: flaky,
+      selection: { provider: 'deepseek', model: 'deepseek-chat' },
+      profileDir: dir,
+    });
+    apply(ctx, { cacheFile, delayMs: 0 });
+
+    const stored = await waitFor(() => {
+      try {
+        return JSON.parse(readFileSync(cacheFile, 'utf8')).entries?.['flaky-plugin'] !== undefined;
+      } catch {
+        return false;
+      }
+    });
+    assert.equal(stored, true, '重试之后应当仍然写入译文');
+    assert.equal(attempts, 2, '第一次失败后应当再试一次');
+    assert.equal(
+      JSON.parse(readFileSync(cacheFile, 'utf8')).entries['flaky-plugin'].zh.title,
+      '十亿级上下文插件',
+    );
   });
 }
 
