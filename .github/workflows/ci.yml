@@ -11,7 +11,7 @@ permissions:
 
 jobs:
   check:
-    name: 语法 / JSON / 词表自检
+    name: 语法 / JSON / 静态自检 / 验收测试
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -29,16 +29,24 @@ jobs:
       - name: 语法检查
         run: |
           node --check lib/index.js
-          node --check lib/phrases.js
-          node --check scripts/check-phrases.mjs
+          node --check lib/text.js
+          node --check lib/cache.js
+          node --check lib/translate.js
+          node --check lib/inject.js
+          node --check scripts/check.mjs
           node --check test/acceptance.mjs
 
       - name: JSON 校验
         run: |
-          node -e "for (const f of ['package.json','locale/en.json','locale/zh.json','examples/phrases.example.json']) { JSON.parse(require('node:fs').readFileSync(f, 'utf8')); console.log('ok', f); }"
+          node -e "for (const f of ['package.json','locale/en.json','locale/zh.json','examples/local-cache.example.json']) { JSON.parse(require('node:fs').readFileSync(f, 'utf8')); console.log('ok', f); }"
 
-      - name: 词表自检
-        run: node scripts/check-phrases.mjs
+      - name: 静态自检（含「不许硬编码词典」）
+        run: node scripts/check.mjs
+
+      # 纯逻辑部分（text / cache / translate / inject）不需要 @deepseek-ai/schemastery，
+      # 所以在 CI 上也能跑；集成到 apply 的那 5 项会自动 skip 并说明原因。
+      - name: 验收测试
+        run: node test/acceptance.mjs
 
       - name: 确认发布必需的字段
         run: |
@@ -49,5 +57,6 @@ jobs:
             if (missing.length) { console.error('缺失字段:', missing.join(', ')); process.exit(1); }
             if (p.dsh?.bundle?.patch !== './cordis.patch.yml') { console.error('dsh.bundle.patch 不正确'); process.exit(1); }
             if (p.exports['./locale/*.json'] !== './locale/*.json') { console.error('缺少 locale 导出'); process.exit(1); }
+            if (p.exports['.'] !== './lib/index.js') { console.error('入口导出不正确'); process.exit(1); }
             console.log('ok', p.name, p.version);
           "

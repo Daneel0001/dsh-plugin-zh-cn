@@ -1,7 +1,7 @@
 {
   "name": "dsh-plugin-zh-cn",
-  "version": "1.4.0",
-  "description": "Render installed DeepSeek Harness plugin titles and descriptions in Simplified Chinese through DSH's own locale dictionaries, without touching any plugin code.",
+  "version": "2.0.2",
+  "description": "Render installed DeepSeek Harness plugin titles and descriptions in Simplified Chinese, translated at startup by DSH's own LLM service and cached in a local JSON file.",
   "license": "MIT",
   "author": "dsh-plugin-zh-cn contributors",
   "type": "module",
@@ -19,27 +19,28 @@
     "examples",
     "test",
     "cordis.patch.yml",
+    "local-cache.json",
     "README.md",
     "CHANGELOG.md",
     "CONTRIBUTING.md",
     "LICENSE"
   ],
   "scripts": {
-    "check": "node scripts/check-phrases.mjs",
-    "check:syntax": "node --check lib/index.js && node --check lib/phrases.js && node --check scripts/check-phrases.mjs",
+    "check": "node scripts/check.mjs",
+    "check:syntax": "node --check lib/index.js && node --check lib/text.js && node --check lib/cache.js && node --check lib/translate.js && node --check lib/inject.js && node --check scripts/check.mjs",
     "test": "node test/acceptance.mjs",
-    "prepack": "node scripts/check-phrases.mjs"
+    "prepack": "node scripts/check.mjs"
   },
   "keywords": [
     "dsh-plugin",
     "deepseek-harness",
     "dsh",
-    "locale",
-    "localized-text",
-    "zh-cn",
-    "chinese",
     "i18n",
     "localization",
+    "zh-cn",
+    "chinese",
+    "translation",
+    "llm",
     "cordis"
   ],
   "engines": {

@@ -1,20 +1,20 @@
 # dsh-plugin-zh-cn
 
-把 [DeepSeek Harness](https://github.com/deepseek-ai)（DSH）**已安装插件**的显示名与描述以**简体中文**呈现。
+把 [DeepSeek Harness](https://github.com/deepseek-ai)（DSH）**已安装插件**的显示名与描述，在启动时用 **DSH 设置里选定的模型**（`agentDefaultModel`）自动翻译成简体中文，并缓存到本地。
 
-它走的是 DSH 自己的插件本地化协议 —— 也就是官方内置插件（「智能体团队」「自动化任务」「语音输入」……）显示中文的**同一条通路**：为缺少语言字典的插件补上一对 `locale/en.json` + `locale/zh.json`。
-
-**不是**替换界面文案，**不是**包装或改写任何插件代码，**不是**修改 DSH 内部服务。
+**没有硬编码词典，不调用任何第三方翻译 API，不碰 DOM。**
 
 ```
 安装前   billion-context      A context-compression plugin — small context windows…
-安装后   无限上下文            上下文压缩插件：100K 上下文即可够用，token 用量减少 5 倍…
+安装后   十亿级上下文插件       小上下文窗口即可容纳超大仓库上下文
 ```
 
-> **English**: Render installed DSH plugin titles and descriptions in Simplified Chinese
-> through DSH's own localization protocol — by giving every installed plugin that lacks
-> one an official `locale/en.json` + `locale/zh.json` pair. English and other locales are
-> rendered **byte-for-byte identically to before**. See [English summary](#english-summary).
+> **English**: `dsh-plugin-zh-cn` renders installed DSH plugin titles and descriptions in
+> Simplified Chinese. At startup it reads a local translation cache, projects
+> `{ en }` plugin metadata into `{ en, zh }` so DSH's own `resolveText()` renders Chinese,
+> and asks DSH's built-in `llm` service to translate any installed plugin the cache does not
+> know yet. No third-party API, no built-in dictionary, no DOM manipulation. See
+> [English summary](#english-summary).
 
 ---
 
@@ -25,34 +25,37 @@
 | 中文 | 中文标题 | 中文描述 |
 | English / 其它 | **与安装前逐字相同** | **与安装前逐字相同** |
 
-- 内置词表覆盖 **185 个插件**：全部官方内置包，以及常见的第三方插件
-  （billion-context、dsh-browser、cc-safety-net、dsh-prompt-optimizer、
-  dsh-thinking-language、dsh-univer-office……）。
-- **词表里没有的插件保持原样**，不会被改动一个字节。
-- 严格模式（默认开启）下，标题与描述**都**有译文才写入，**不会出现半中半英**。
-- 已经自带 `locale/` 字典的插件（含全部官方插件）**一律跳过**，绝不覆盖别人的翻译。
-- 插件名与描述来自本地词表：**不联网、不调用任何模型**，运行期开销只是启动时的一次写盘。
+- **零 DOM 改动**：不新增节点、不改 class、不改内联样式、不改任何文本节点。
+- **零开关影响**：右侧启用/停用走 `entry.enabled` 与 `pluginManager.setPluginEnabled`，
+  和元数据毫无交集。
+- **不动别人的翻译**：元数据里已经带 `zh` 的插件（含全部官方内置插件）一律跳过，
+  一个字节都不改。已经自带中文的内置选项（「语音输入」「终端」……）自然不会被碰。
+- **失败即原样**：模型报错、超时、返回非法 JSON、译文不是中文 —— 任何一条都只让
+  该插件保留英文，并记一条警告，**设置界面不会崩溃、不会白屏**。
+- **严格模式（默认开）**：名称与描述都拿到译文才写入缓存，绝不出现半中半英。
+- **可完全卸载**：插件被禁用或移除时，注入层通过 `ctx.effect` 的清理回调原样撤销。
 
 ## 安装
 
 ### 从插件市场安装（推荐）
 
-在 DSH 桌面版的「插件」页点「添加插件」，填入本仓库地址即可：
+在 DSH 桌面版的「插件」页点「添加插件」，填入本仓库地址：
 
 ```
 github:Daneel0001/dsh-plugin-zh-cn
 ```
 
-装好后 **重启 Harness**。客户端模块图是在渲染页面时写进 `index.html` 的，仅刷新页面不会把新插件送进已打开的窗口。
+装好后 **重启 Harness**。客户端模块图是在渲染页面时写进 `index.html` 的，
+仅刷新页面不会把新插件送进已打开的窗口。
 
 ### 手动安装
 
 ```powershell
 # 1. 把 tgz 放进 profile 的 plugins 目录
-Copy-Item .\dsh-plugin-zh-cn-1.4.0.tgz "$env:DSH_PROFILE_DIR\plugins\"
+Copy-Item .\dsh-plugin-zh-cn-2.0.0.tgz "$env:DSH_PROFILE_DIR\plugins\"
 
 # 2. 在 <profile>/package.json 里登记两处
-#    dependencies:        "dsh-plugin-zh-cn": "file:<profile>/plugins/dsh-plugin-zh-cn-1.4.0.tgz"
+#    dependencies:        "dsh-plugin-zh-cn": "file:<profile>/plugins/dsh-plugin-zh-cn-2.0.0.tgz"
 #    dsh.profile.bundles: 追加 "dsh-plugin-zh-cn"
 
 # 3. 用 pnpm 真正安装（这一步才会写入 lockfile 与 .modules.yaml）
@@ -61,22 +64,108 @@ node "$pnpm" install --dir "$env:DSH_PROFILE_DIR"
 
 > **必须走第 3 步。** 只把 tgz 放进 `plugins/`、再手工复制目录到 `node_modules/` 是**不够**的：
 > DSH 组合 profile 时以 pnpm 的安装结果为依据，未进入 `pnpm-lock.yaml` /
-> `node_modules/.modules.yaml` 的包会被静默跳过 —— 插件看起来装好了，却完全不生效。
+> `node_modules/.modules.yaml` 的包会被静默跳过。
 
 ### 生效时机
 
-`readPluginMeta` 每次调用都**实时读文件**，所以插件跑过一次之后：
+- **第一次启动**：已缓存过的插件**立刻**就是中文；新发现的插件在后台翻译，
+  本次启动仍显示英文。
+- **第二次启动**：上次翻好的插件直接命中缓存，**一个请求都不发**。
+- **想在第一次启动里就看到中文**：把一份现成的 `local-cache.json` 交给 `seedFiles`
+  （格式见 [`examples/local-cache.example.json`](examples/local-cache.example.json)）。
+- 也可以在后台翻译完成后**切换一次设置页或刷新窗口**：注入层是实时查缓存的，
+  重新取数就能看到中文，不必重启。
 
-- **刷新页面**即可看到中文，不必为了看到效果而重启；
-- 新装一个插件后，**下次启动**时它会被自动补上字典。
+## 工作原理
 
-## 卸载
+### 1. 拦截点：数据层，而不是 DOM
 
-在插件设置里关掉「插件简体中文化」，然后重启。
+DSH 的插件列表渲染链是（均为 `app.asar` 内官方源码）：
 
-插件为每个包写入的字典文件都带一个 `$dshPluginZhCn` 标记；插件被移除或禁用时，清理回调会删除**带标记的文件**、撤销自己加进 `exports` 的那一项，并收走自己创建的空 `locale/` 目录。
+```
+客户端 UI 组件 PluginInventorySettingsTab
+  └─ ctx.remote.pluginInventory.list()          dsh-client-ui-settings-plugin-inventory/lib/client.js
+       └─ 宿主服务 pluginInventory.list()        dsh-host-plugin-inventory/lib/index.js
+            └─ readPluginInventory(ctx)
+                 ├─ ctx.loader.entries()        ← 「已安装」的插件行
+                 └─ ctx.get('pluginPackages').metaOf(name, base) → { title, description }
+```
 
-**你自己改过的字典**（标记被去掉，或内容被手工修改过）会被完整保留，不会被误删。
+而屏幕上真正出现的文字，只在客户端这一个出口被解析：
+
+```js
+// dsh-client-locale/lib/client.js
+resolveText(text) {
+  if (typeof text === 'string') return text;
+  return this.fallbackChain(this.snapshot.active)
+    .reduceRight((resolved, locale) => text[localeKey(locale)] ?? resolved, text.en);
+}
+```
+
+`LocalizedText = string | { en: string, [locale]: string }` —— 中文界面取 `zh`，英文界面取 `en`。
+**这正是官方内置插件显示「智能体团队」而英文界面仍显示原文的机制。**
+
+所以本插件只做一件事：在数据层把 `meta.title` / `meta.description` 从 `{ en }` 补成 `{ en, zh }`。
+包装两处返回值，任一生效即可：
+
+| 目标 | 位置 | 说明 |
+| --- | --- | --- |
+| `pluginPackages.metaOf` | `dsh-app-boot` 的 cordis Service | `readPluginInventory` 的直接取数处 |
+| `pluginInventory.list` | `dsh-host-plugin-inventory` 的 Remote 网关 | 界面调用的入口，兜底 |
+
+### 为什么不用 MutationObserver 改文本节点？
+
+事后补救。React 每次重渲染都会把改过的文本节点覆盖回去，需要持续对抗；
+而且一旦插件的元数据或 DOM 结构稍有变化就容易误伤布局。
+数据层注入则从根上解决问题：**DOM 从头到尾就没有被改过**，中文是 DSH 自己渲染出来的。
+
+### 2. 缓存
+
+运行时缓存位置（原子写入：先写 `.tmp` 再 rename）：
+
+```
+<DSH_PROFILE_DIR>/dsh-plugin-zh-cn/local-cache.json
+# 例如 C:\Users\<你>\.dsh\profiles\desktop\dsh-plugin-zh-cn\local-cache.json
+```
+
+```json
+{
+  "version": 2,
+  "generator": "dsh-plugin-zh-cn",
+  "updatedAt": "2026-10-16T10:43:30.000Z",
+  "entries": {
+    "billion-context": {
+      "en": { "title": "billion-context", "description": "A context-compression plugin — …" },
+      "zh": { "title": "十亿级上下文插件", "description": "小上下文窗口即可…" },
+      "model": "deepseek/deepseek-chat",
+      "translatedAt": "2026-10-16T10:43:30.000Z"
+    }
+  }
+}
+```
+
+- **增量**：按包名索引；`en` 是英文指纹，指纹没变就**一个请求都不发**，变了才重译。
+- **只增不减**：每次写盘都是「读旧 → 合并新条目 → 原子替换」，
+  历史条目（包括已经卸载的插件）永远保留，方便你回查和手工编辑。
+- **兼容旧格式**：扁平词表 `{ "<包名>": { "title": "…", "description": "…" } }`
+  会被当作中文译文直接吸收，可以作为初值平滑迁移。
+- **多来源合并**：随包发布的 `local-cache.json` 与 `seedFiles` 都是**初值**，
+  运行时缓存里的同键条目优先，绝不会被清空覆盖。
+
+### 3. 翻译
+
+只用 `ctx.get('llm').stream(...)`，模型取 `ctx.get('agentDefaultModel').currentSelection()`。
+一次请求同时把名称与描述交给模型，要求它只回一个 JSON：
+
+```
+系统提示词（要点）
+  只输出 {"name":"<中文名称>","desc":"<中文描述>"}，不要解释、不要 Markdown 围栏
+  名称 ≤ 12 个汉字；描述 ≤ 40 个汉字、一句话
+  API / Token / MCP / SSH / Git / JSON / LLM 等专有名词照抄不译
+```
+
+收到回复后会**先校验再落盘**：必须能解析出 JSON、译文必须真的含中文。
+不满足就当作失败，保留英文原文。
 
 ## 配置
 
@@ -84,142 +173,87 @@ node "$pnpm" install --dir "$env:DSH_PROFILE_DIR"
 - id: zh-cn-plugin-locale
   name: dsh-plugin-zh-cn
   config:
-    enabled: true        # 总开关
-    target: zh           # 目标语言主标签；DSH 内置中文的 id 是 zh
-    strict: true         # 严格模式：标题或描述缺译文就整包保持原样
-    overwrite: false     # 是否覆盖别人已放置的同名字典（默认不覆盖）
-    phraseFiles: []      # 追加词表（JSON 文件绝对路径）
-    roots: []            # 额外的 profile 查找起点；留空则自动定位
+    enabled: true          # 总开关
+    strict: true           # 名称+描述都有译文才写入缓存
+    timeoutMs: 30000       # 单条翻译超时
+    maxTokens: 512         # 单条翻译输出上限
+    provider: ''           # 留空 = 用「设置 → 模型」里的默认模型
+    model: ''
+    cacheFile: ''          # 留空 = <profile>/dsh-plugin-zh-cn/local-cache.json
+    seedFiles: []          # 额外的缓存初值（绝对路径），只合并、不覆盖
+    maxPerStart: 500       # 每次启动最多新翻几个插件（默认实质上不限，一个全新 profile 也就几百条）
+    delayMs: 200           # 两条翻译之间的间隔
+    saveEvery: 8           # 每翻译成功几条落一次盘，中途退出不丢已完成的部分
+    debug: false           # 把每条翻译结果写进 debug 日志
 ```
-
-追加词表格式（键用裸包名，`@scope/name` 或 `name`）：
-
-```json
-{
-  "my-plugin": { "title": "我的插件", "description": "一句话说明这个插件做什么。" }
-}
-```
-
-文件读取失败、结构不合法都只记录警告，不影响 DSH 启动。可参考
-[`examples/phrases.example.json`](examples/phrases.example.json)。
-
-## 工作原理
-
-DSH 显示插件名称与描述时，宿主端用 `pluginPackages.metaOf(specifier)` 读取该插件**所在目录下**的语言字典：
-
-```
-<pkg>/locale/en.json     ← 字典入口，必须存在，DSH 用它发现整个目录
-<pkg>/locale/zh.json     ← 简体中文
-```
-
-每个文件形如：
-
-```json
-{ "meta": { "title": "…", "description": "…" } }
-```
-
-只要 `locale/en.json` 存在，`dsh-app-boot` 就会把同目录下所有 `<lang>.json` 收集成一份语言表，把 `title` / `description` 变成 `{ en, zh, … }` 这样的 `LocalizedText`；界面渲染时用 `dsh-client-locale` 的 `resolveText()` 按「当前语言 → fallback 链（`zh` 的 fallback 是 `en`）」取值。
-
-`locale/*.json` 必须被该包的 `exports` 暴露，因为资源解析走 Node ESM resolver。
-
-本插件在启动时扫描 profile 的 `node_modules/`，为词表里**已安装且还没有字典**的插件补上这两个文件；`en` 字段写的是 DSH 在没有字典时的显示名规则（`moduleShortName()`，即去掉作用域名与 `cordis:` / `cordis-plugin-` / `dsh-` / `dsh-host-` / `dsh-client-` 前缀），因此**非中文界面的显示结果与安装前逐字相同**。
-
-### 为什么不用「包装 `metaOf` 返回值」？
-
-更轻的直觉做法是给 `pluginPackages.metaOf` 套一层投影、直接返回带 `zh` 的 `LocalizedText` 对象。
-
-实测在桌面版上这条路的返回值**确实被改写成功**（调用栈确认经过了包装），但界面拿到的仍是英文：官方机制的数据通路是「**包内字典 → `readPluginMeta` → `LocalizedText`**」，绕过文件系统直接构造对象会在后续环节落回原文。
-
-所以本插件直接走同一条通路，不依赖任何内部实现细节。
 
 ## 安全与副作用
 
-- 写入范围**仅限**：`<已安装插件>/locale/en.json`、`<已安装插件>/locale/zh.json`，
-  以及在必要时为 `<已安装插件>/package.json` 的 `exports` 增加一项
-  `"./locale/*.json": "./locale/*.json"`。
-- **只处理词表里列出的包**；其它包不会被读取或修改。
-- **绝不覆盖**别人已放置的字典：目标文件存在且不带本插件标记时跳过。
-- `exports` 若不是子路径映射表（例如写成单个字符串），该包整体跳过，不做半截改动。
-- 单个包写入中途失败会**回滚**该包已写入的文件，保持原样。
-- 每个包独立处理，任何异常都被捕获并降级为一条警告，**不会影响 DSH 启动**。
-- 全程不联网、不执行外部命令、不修改 profile 自身配置。
+- **只读**其它插件的 `package.json`；**不写入**任何其它插件的目录。
+- 唯一会写的文件是 `local-cache.json`（及其 `.tmp`），位置就在插件自己的数据目录。
+- 不联网（除 DSH 自己的模型调用外）、不执行外部命令、不改 profile 配置。
+- 所有异常都被捕获并降级为一条 `warn` 日志，**不会影响 DSH 启动**。
 
-## 发布到 GitHub
+## 卸载
 
-本目录**已经是一个初始化好的 git 仓库**（分支 `main`，含首次提交 `feat: dsh-plugin-zh-cn 1.4.0`），
-`package.json` 与 `CHANGELOG.md` 里的仓库地址也已指向 `Daneel0001/dsh-plugin-zh-cn`，可以直接推送。
+在插件设置里关掉「插件简体中文化」，然后重启。
 
-```bash
-# 1. 在 GitHub 上新建一个空仓库 dsh-plugin-zh-cn
-#    （不要勾选 Add README / .gitignore / license，保持空仓库）
-
-# 2. 关联远端并推送
-git remote add origin https://github.com/Daneel0001/dsh-plugin-zh-cn.git
-git push -u origin main
-
-# 3. 打 tag、发 Release，并把 tgz 作为附件上传
-git tag v1.4.0
-git push origin v1.4.0
-```
-
-推送后发一个 Release，把 `dsh-plugin-zh-cn-1.4.0.tgz` 作为附件上传，
-用户就能用 `github:Daneel0001/dsh-plugin-zh-cn` 直接在插件市场安装。
-
-> CI（`.github/workflows/ci.yml`）会在 Node 22 / 24 上跑语法检查、JSON 校验与词表自检 ——
-> 不需要任何依赖安装。
+注入层随插件 fiber 一起卸载（`ctx.effect` 清理回调会还原被包装的两个方法）。
+运行时缓存 `local-cache.json` 会留在 profile 里，想彻底清干净就手动删掉
+`<DSH_PROFILE_DIR>/dsh-plugin-zh-cn/` 目录。
 
 ## 开发
 
 ```bash
-# 词表自检 + 语法检查（任何 Node ≥ 20，无需依赖）
-npm run check
-npm run check:syntax
+npm run check          # 静态自检：清单、语法、可导入性，以及「不许硬编码词典」
+npm run check:syntax   # 只做语法检查
 
-# 验收测试（45 项）：必须从已安装位置运行，因为要解析宿主提供的 schemastery
-npm test
-# 或者显式指定安装位置：
-node <profile>/node_modules/dsh-plugin-zh-cn/test/acceptance.mjs
+npm test               # 47 项验收测试（含 8 项 apply 集成测试）
 ```
 
-测试全部在系统临时目录里跑（显式传入 `roots` 会**独占**查找范围），因此**永远不会碰真实 profile**。
+`npm test` 零依赖，在源码目录里就能跑完 47 项（含 8 项 `apply` 端到端集成测试）。
+测试全部在系统临时目录里工作，**永远不会碰真实 profile**。
 
-仓库还带一个不依赖 DSH 的自检脚本，可在任何 Node ≥ 20 环境运行：
-
-```bash
-node scripts/check-phrases.mjs     # 校验词表结构与键的唯一性
-```
-
-导出：`apply`、`Config`、`inject`、`name`，以及供测试使用的纯函数
-`buildDictionary`、`moduleShortName`、`normalizeTarget`、`readPhraseFile`、
-`sanitizePhrases`，和标记常量 `MARK`。
+导出：`apply`、`resolveConfig`、`DEFAULTS`、`inject`、`name`，以及供测试使用的纯函数
+`resolveCacheFile`、`nearestProfileDir`、`collectInstalledPlugins`、
+`extractEnglish`、`alreadyLocalized`、`resolveSelection`、`runTranslationPass`。
 
 ### 目录结构
 
 ```
-lib/index.js              宿主插件：定位 profile、注入字典、注册清理回调
-lib/phrases.js            内置词表（185 条，纯数据）
-locale/en.json            本插件自身的英文字典（自举）
-locale/zh.json            本插件自身的中文字典（自举）
-cordis.patch.yml          bundle 补丁：把插件行插进组合配置树
-test/acceptance.mjs       45 项验收测试
-scripts/check-phrases.mjs 词表自检（CI 用）
-examples/                 追加词表示例
+lib/index.js        插件入口：读缓存 → 装注入 → 异步扫描翻译
+lib/inject.js       数据层注入：包装 metaOf / pluginInventory.list（实例 + 原型，动态 this）
+lib/cache.js        local-cache.json 的读取、合并、原子写
+lib/translate.js    llm 调用、提示词、JSON 解析与中文校验
+lib/text.js         LocalizedText 工具与「值不值得翻译」的判定
+locale/*.json       本插件自身的语言字典（自举）
+cordis.patch.yml    bundle 补丁：把插件行插进组合配置树
+test/acceptance.mjs 47 项验收测试
+scripts/check.mjs   静态自检（CI / prepack）
+examples/           local-cache.json 格式示例
 ```
 
 ## English summary
 
 `dsh-plugin-zh-cn` renders the titles and descriptions of installed DSH plugins in
-Simplified Chinese by using DSH's own localization protocol — the same mechanism the
-official bundled plugins use.
+Simplified Chinese.
 
-At startup it scans the profile's `node_modules/`, and for every plugin listed in its
-built-in catalogue (185 entries) that has no `locale/` directory yet, it writes an
-official `locale/en.json` + `locale/zh.json` pair and exposes them through the package's
-`exports`. Files are tagged with a `$dshPluginZhCn` marker so they can be removed
-precisely on uninstall. Nothing else is read, written, or overwritten, and English
-locales render **byte-for-byte identically to before** the plugin was installed.
+At startup the host half:
 
-No network access, no model calls, no patching of other plugins' code.
+1. reads `<profile>/dsh-plugin-zh-cn/local-cache.json` synchronously, so the first render
+   already has Chinese for everything it has seen before;
+2. wraps `pluginPackages.metaOf` and `pluginInventory.list` — the exact functions the
+   settings UI reads plugin metadata through — projecting `{ en }` into `{ en, zh }`.
+   DSH's own `resolveText()` then renders Chinese on a Chinese UI and the original English
+   everywhere else. **No DOM node, class, style, or the enable/disable toggle is touched.**
+3. asynchronously scans the installed plugin list and asks DSH's built-in `llm` service
+   (`ctx.get('llm')`, default model from `agentDefaultModel`) to translate any plugin the
+   cache does not know, one request carrying both the name and the description, and
+   expecting `{"name": …, "desc": …}`. Results are merged back into the cache.
+
+No third-party translation API, no built-in dictionary, no network calls beyond DSH's own
+model route. Any failure — timeout, bad JSON, non-Chinese output, model error — leaves the
+English original in place and logs a warning.
 
 ## 许可
 

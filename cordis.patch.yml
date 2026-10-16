@@ -1,10 +1,16 @@
 # dsh-plugin-zh-cn bundle patch.
 #
-# Registers the plugin's host entry. The host half is all this plugin needs:
-# at startup it gives every installed plugin that is missing one an official
-# `locale/en.json` + `locale/<lang>.json` pair, which is exactly how DSH's own
-# bundled plugins present localized titles and descriptions. No browser-side
-# module is required.
+# 只登记宿主半边 —— 本插件不需要任何浏览器侧模块。
+#
+# 启动时它做三件事：
+#   1. 同步读取 <profile>/dsh-plugin-zh-cn/local-cache.json，建好翻译表；
+#   2. 在数据层把插件元数据从 `{ en }` 补成 `{ en, zh }`
+#      （包装 pluginPackages.metaOf 与 pluginInventory.list，**不碰 DOM**）；
+#   3. 异步扫描「已安装插件」，对缓存里没有的英文插件调用 DSH 内置的 llm 服务翻译，
+#      结果合并写回缓存；下次启动即为已翻译状态。
+#
+# 界面里的中文由 DSH 自己的 dsh-client-locale `resolveText()` 按当前语言取出，
+# 因此英文界面的显示结果与安装本插件之前逐字相同。
 
 - insert:
     - id: zh-cn-plugin-locale

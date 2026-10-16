@@ -1,0 +1,31 @@
+{
+  "_comment": "local-cache.json 的格式示例。可以把它当作 seedFiles 的初值交给插件：启动时会被合并进运行时缓存，已有的翻译永远不会被清空或覆盖。字段说明：en 是英文原文（指纹，用来判断需不需要重译），zh 是译文；en 变了就会重新翻译。",
+  "version": 2,
+  "generator": "dsh-plugin-zh-cn",
+  "entries": {
+    "my-plugin": {
+      "en": {
+        "title": "my-plugin",
+        "description": "One line about what this plugin does."
+      },
+      "zh": {
+        "title": "我的插件",
+        "description": "一句话说明这个插件做什么"
+      },
+      "model": "deepseek/deepseek-chat",
+      "translatedAt": "2026-10-16T00:00:00.000Z"
+    },
+    "@scope/another-plugin": {
+      "en": {
+        "title": "@scope/another-plugin",
+        "description": "Scoped packages also use the full @scope/name as the key."
+      },
+      "zh": {
+        "title": "另一个插件",
+        "description": "作用域包用完整的 @scope/name 作为键"
+      },
+      "model": "deepseek/deepseek-chat",
+      "translatedAt": "2026-10-16T00:00:00.000Z"
+    }
+  }
+}

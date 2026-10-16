@@ -1,6 +1,6 @@
 {
   "meta": {
     "title": "Plugin Chinese Locale",
-    "description": "Show installed plugin titles and descriptions in Simplified Chinese."
+    "description": "Translate installed plugin titles and descriptions into Simplified Chinese at startup with DSH's own model, cached locally."
   }
 }
