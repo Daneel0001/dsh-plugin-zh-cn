@@ -1,5 +1,7 @@
 # dsh-plugin-zh-cn
 
+[![](https://img.shields.io/badge/powered_by-dsh-4D6BFE?style=flat-square&logo=deepseek&logoColor=white)](https://github.com/deepseek-ai/deepseek-harness)
+
 把 [DeepSeek Harness](https://github.com/deepseek-ai)（DSH）**已安装插件**的显示名与描述，在启动时用 **DSH 设置里选定的模型**（`agentDefaultModel`）自动翻译成简体中文，并缓存到本地。
 
 **没有硬编码词典，不调用任何第三方翻译 API，不碰 DOM。**
