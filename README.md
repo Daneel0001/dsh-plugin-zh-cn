@@ -154,8 +154,8 @@ resolveText(text) {
 
 ### 3. 翻译
 
-只用 `ctx.get('llm').stream(...)`，模型取 `ctx.get('agentDefaultModel').currentSelection()`。
-一次请求同时把名称与描述交给模型，要求它只回一个 JSON：
+只用 `ctx.get('llm').stream(...)`，模型按「config 显式指定 → 「设置 → 模型」默认模型 →
+账号渠道兜底」的顺序解析。一次请求同时把名称与描述交给模型，要求它只回一个 JSON：
 
 ```
 系统提示词（要点）
@@ -169,24 +169,39 @@ resolveText(text) {
 
 ## 配置
 
+插件导出 `Config`（Schemastery schema），所以「设置 → 插件」里这个插件的配置表单就是按下面这些字段渲染的；
+也可以直接写进 profile 的 `cordis.patch.yml`：
+
 ```yaml
 - id: zh-cn-plugin-locale
   name: dsh-plugin-zh-cn
   config:
-    enabled: true          # 总开关
-    strict: true           # 名称+描述都有译文才写入缓存
-    timeoutMs: 60000       # 单条翻译超时（描述很长的插件要给足时间）
-    maxTokens: 4096        # 单条翻译输出上限（推理型模型可能先吐思考再给 JSON）
-    provider: ''           # 留空 = 用「设置 → 模型」里的默认模型
-    model: ''
-    cacheFile: ''          # 留空 = <profile>/dsh-plugin-zh-cn/local-cache.json
-    seedFiles: []          # 额外的缓存初值（绝对路径），只合并、不覆盖
-    maxPerStart: 500       # 每次启动最多新翻几个插件（默认实质上不限，一个全新 profile 也就几百条）
-    delayMs: 200           # 两条翻译之间的间隔
-    saveEvery: 8           # 每翻译成功几条落一次盘，中途退出不丢已完成的部分
-    retry: 3               # 每条最多尝试几次（设为 1 即关闭重试）
-    debug: false           # 把每条翻译结果写进 debug 日志
+    enabled: true            # 总开关
+    strict: true             # 名称+描述都有译文才写入缓存
+    timeoutMs: 60000         # 单条翻译超时（描述很长的插件要给足时间）
+    maxTokens: 4096          # 单条翻译输出上限（推理型模型可能先吐思考再给 JSON）
+    provider: ''             # 留空 = 用「设置 → 模型」里的默认模型；想固定用 DSH 账号 API 就填 deepseek-account
+    model: ''                # 与 deepseek-account 搭配时填 deepseek-flash
+    fallbackToAccount: true  # 默认模型读不到时，自动回退到 deepseek-account/deepseek-flash
+    retryDelayMs: 180000     # 没等到可用模型时，隔多久自动重试一轮（毫秒）
+    cacheFile: ''            # 留空 = <profile>/dsh-plugin-zh-cn/local-cache.json
+    seedFiles: []            # 额外的缓存初值（绝对路径），只合并、不覆盖
+    maxPerStart: 500         # 每次启动最多新翻几个插件（默认实质上不限，一个全新 profile 也就几百条）
+    delayMs: 200             # 两条翻译之间的间隔
+    saveEvery: 8             # 每翻译成功几条落一次盘，中途退出不丢已完成的部分
+    retry: 3                 # 每条最多尝试几次（设为 1 即关闭重试）
+    debug: false             # 把每条翻译结果写进 debug 日志
 ```
+
+**模型解析顺序**（前一个拿不到才用下一个）：
+
+1. config 里的 `provider` + `model`（显式指定，推荐填 `deepseek-account` / `deepseek-flash`）；
+2. 「设置 → 模型」里选定的默认模型；
+3. `fallbackToAccount: true`（默认）时，回退到 DSH 账号渠道的 `deepseek-account/deepseek-flash`。
+
+`fallbackToAccount` 是 2.1.0 加的：以前启动早期读不到默认模型，整轮翻译会一条都不翻（缓存里的
+`lastRun` 停在 `model: "(未就绪)"`、`translated: 0`）。现在第 3 级兜底保证能翻；实在没模型时，
+插件会按 `retryDelayMs` 自动重试，不再「本轮放弃、等下辈子启动」。
 
 ## 安全与副作用
 

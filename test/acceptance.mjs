@@ -921,7 +921,14 @@ if (applyModule !== undefined) {
         currentSelection: () => (++calls < 3 ? {} : { provider: 'p', model: 'm' }),
       }),
     };
-    const got = await resolveSelectionWithWait({ ctx, config: {}, attempts: 6, intervalMs: 5 });
+    // 关掉账号兜底，才走「轮询等默认模型」这条路径；否则 resolveSelection 会
+    // 立刻用 deepseek-account/deepseek-flash 兜底，永远不会等。
+    const got = await resolveSelectionWithWait({
+      ctx,
+      config: { fallbackToAccount: false },
+      attempts: 6,
+      intervalMs: 5,
+    });
     assert.equal(got?.provider, 'p', '应当等到 provider 出现');
     assert.equal(got?.model, 'm', '应当等到 model 出现');
     assert.ok(calls >= 3, '应当一直轮询到模型就绪');
@@ -929,9 +936,53 @@ if (applyModule !== undefined) {
 
   await test('resolveSelectionWithWait gives up instead of translating without a model', async () => {
     const ctx = { get: () => ({ currentSelection: () => ({}) }) };
-    const got = await resolveSelectionWithWait({ ctx, config: {}, attempts: 2, intervalMs: 5 });
+    const got = await resolveSelectionWithWait({
+      ctx,
+      config: { fallbackToAccount: false },
+      attempts: 2,
+      intervalMs: 5,
+    });
     assert.equal(got, undefined, '超时后返回 undefined，由调用方保留英文原文');
   });
+
+  await test('resolveSelection falls back to the DSH account route when no default model is available', async () => {
+    const ctx = { get: () => ({ currentSelection: () => ({}) }) };
+    const got = applyModule.resolveSelection(ctx, {});
+    assert.equal(got.provider, applyModule.ACCOUNT_FALLBACK.provider, '应当兜底到 deepseek-account');
+    assert.equal(got.model, applyModule.ACCOUNT_FALLBACK.model, '应当兜底到 deepseek-flash');
+  });
+
+  await test('fallbackToAccount: false keeps the old "no model, no translation" behavior', async () => {
+    const ctx = { get: () => ({ currentSelection: () => ({}) }) };
+    const got = applyModule.resolveSelection(ctx, { fallbackToAccount: false });
+    assert.equal(got.provider, '', '关闭兜底后 provider 保持空');
+    assert.equal(got.model, '', '关闭兜底后 model 保持空');
+  });
+
+  await test('an explicit config beats both the default model and the account fallback', async () => {
+    const ctx = {
+      get: (name) =>
+        name === 'agentDefaultModel'
+          ? { currentSelection: () => ({ provider: 'openai-gateway', model: 'gpt-x' }) }
+          : undefined,
+    };
+    const got = applyModule.resolveSelection(ctx, { provider: 'deepseek-account', model: 'deepseek-flash' });
+    assert.equal(got.provider, 'deepseek-account');
+    assert.equal(got.model, 'deepseek-flash');
+  });
+
+  if (applyModule.Config === undefined) {
+    skip('Config schema export', 'schemastery is not installed in this repo checkout (expected outside DSH)');
+  } else {
+    await test('Config schema exposes provider/model/fallbackToAccount', async () => {
+      const Config = applyModule.Config;
+      assert.equal(typeof Config, 'function', 'Config 应当是 Schemastery schema');
+      const parsed = Config({});
+      assert.equal(parsed.provider, '', 'provider 默认留空');
+      assert.equal(parsed.model, '', 'model 默认留空');
+      assert.equal(parsed.fallbackToAccount, true, 'fallbackToAccount 默认开启');
+    });
+  }
 
   await test('a flaky model is retried and still ends up translated', async () => {
     const dir = tempDir('retry');

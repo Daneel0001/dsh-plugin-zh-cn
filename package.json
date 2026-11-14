@@ -1,6 +1,6 @@
 {
   "name": "dsh-plugin-zh-cn",
-  "version": "2.0.8",
+  "version": "2.1.0",
   "description": "Render installed DeepSeek Harness plugin titles and descriptions in Simplified Chinese, translated at startup by DSH's own LLM service and cached in a local JSON file.",
   "license": "MIT",
   "author": "dsh-plugin-zh-cn contributors",
@@ -11,6 +11,9 @@
     "./locale/*.json": "./locale/*.json",
     "./cordis.patch.yml": "./cordis.patch.yml",
     "./package.json": "./package.json"
+  },
+  "dependencies": {
+    "@deepseek-ai/schemastery": "~3.18.5"
   },
   "files": [
     "lib",

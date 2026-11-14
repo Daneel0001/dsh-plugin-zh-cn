@@ -15,3 +15,9 @@
 - insert:
     - id: zh-cn-plugin-locale
       name: dsh-plugin-zh-cn
+      # 模板默认配置。想固定用 DSH 账号 API 翻译，把下面两行改成：
+      #   provider: deepseek-account
+      #   model: deepseek-flash
+      # 留空则跟随「设置 → 模型」里的默认模型；读不到时由 fallbackToAccount 兜底。
+      config:
+        fallbackToAccount: true

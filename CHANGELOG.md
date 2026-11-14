@@ -2,6 +2,34 @@
 
 本文件记录所有值得注意的变更。版本号遵循[语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [2.1.0] — 2026-11-14
+
+**插件页可以配置翻译模型了；「未就绪」不再让整轮翻译白跑。**
+
+### 新增
+
+- **导出 `Config`（Schemastery schema）**：DSH 会在「设置 → 插件」里按它渲染配置表单，
+  也能在 profile 的 `cordis.patch.yml` 里写。新增字段 `fallbackToAccount`、`retryDelayMs`，
+  `provider` / `model` 有了正式的表单入口 —— 填 `deepseek-account` / `deepseek-flash`
+  即可固定用 DSH 账号 API 翻译。
+- **模型解析三级回退**：config 显式值 → 「设置 → 模型」的默认模型 →
+  `deepseek-account/deepseek-flash` 兜底（`fallbackToAccount: true`，默认开启）。
+- **自动重试**：没等到可用模型时，按 `retryDelayMs`（默认 3 分钟）自动重试，
+  不再「本轮直接放弃」。
+
+### 修复
+
+- 排查「`dsh-kb-lite` 一直是英文」时定位到：启动早期 `agentDefaultModel.currentSelection()`
+  读不到默认模型，`lastRun` 停在 `phase: "start"`、`model: "(未就绪)"`、`translated: 0`，
+  缓存里永远没有新插件（如 `dsh-kb-lite`、`dsh-pet`）的译文。三级回退 + 自动重试解决了它。
+
+### 测试
+
+- 新增 4 项：账号渠道兜底、`fallbackToAccount: false` 保持旧行为、显式 config 优先、
+  Config schema 字段（在装了 schemastery 的环境里才跑）。
+- 原「轮询等待默认模型」两项改为显式传 `fallbackToAccount: false`。
+- 合计 **59 项通过 + 1 项按环境跳过**。
+
 ## [2.0.8] — 2026-10-16
 
 ### 修复
