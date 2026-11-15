@@ -2,6 +2,23 @@
 
 本文件记录所有值得注意的变更。版本号遵循[语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [2.3.1] — 2026-11-15
+
+**修掉「卡片是白板」的样式 bug，外观对齐「设置 → 模型」页。**
+
+### 修复
+
+- `ensureStyles()` 返回的清理函数被立刻执行了一次：`<style>` 刚插进 `document.head` 就被
+  `remove()` 掉，于是卡片只剩裸文本堆叠。现在改为交给 `useEffect` 作为卸载清理使用。
+
+### 变更
+
+- 改用 DSH 自己的主题变量（`--dsw-alias-border-l2`、`--dsw-alias-bg-layer-2/-3`、
+  `--dsw-alias-label-primary/-secondary/-tertiary/-dimmed`、`--dsw-alias-brand-primary`、
+  `--dsw-alias-state-success-primary`、`--dsw-alias-status-danger`），深浅色随主题切换。
+- 每行是一张 14px 圆角卡片（图标方块 + 名称 + 说明 + 「编辑/收起」），当前后端带绿点与「当前」；
+  编辑区在卡片内部展开（分隔线 + 字段），底部「保存 / 恢复默认」。
+
 ## [2.3.0] — 2026-11-15
 
 **翻译后端可以选了：微软翻译（免费）/ 自定义 API / DSH 里的模型。账号渠道翻译不了的问题绕开了。**
