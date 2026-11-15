@@ -6,7 +6,8 @@
 
 先说清楚，因为它决定了什么 PR 会被拒：
 
-1. **不内置任何词典。** 译文只能来自两个地方：DSH 内置 `llm` 服务的实时翻译，
+1. **不内置任何词典。** 译文只能来自两个地方：`backend` 选定的翻译后端
+   （`bing` 免费接口 / `api` 自定义接口 / `llm` DSH 里的模型）的实时翻译，
    以及 `local-cache.json`。往源码里塞中文映射表是**明确禁止**的
    （`scripts/check.mjs` 会自动拦下来）。
 2. **不碰 DOM。** 不新增/删除节点，不改 class，不改内联样式，不改文本节点。
@@ -35,6 +36,14 @@
 2. **指纹有效** —— `en` 是英文原文；指纹变了才重译。
 3. **坏文件不致命** —— 读不出来就当空缓存，只记一条警告。
 
+### 改进翻译后端
+
+- 三个后端都在 [`lib/translate.js`](lib/translate.js)：`translateViaBing()`（免费网页接口，
+  会话里的 `IG` / `IID` / `params_AbusePreventionHelper` 按 5 分钟缓存，401/403/429 自动换会话）、
+  `translateViaApi()`（OpenAI 兼容 `/chat/completions`）、`translatePlugin()`（DSH `llm`）。
+- Bing 页面结构一变就会失败，此时插件只保留英文 + 一条警告，不会影响启动；
+  修好后请顺手在 README 的「翻译」表里更新说明。
+
 ### 同步官方机制的变化
 
 数据层那两个包装点（`pluginPackages.metaOf`、`pluginInventory.list`）来自 DSH 官方包
@@ -60,7 +69,7 @@ npm run check:syntax   # 只做语法检查
 
 ```bash
 npm test
-# 期望输出：47 passed, 0 failed, 0 skipped
+# 期望输出：60 passed, 0 failed, 0 skipped（在 DSH profile 外会跳过 Config schema 那 1 项）
 ```
 
 测试全部在系统临时目录里工作，不会碰真实的 profile。

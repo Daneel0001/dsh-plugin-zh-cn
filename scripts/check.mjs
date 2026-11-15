@@ -9,7 +9,7 @@
  *   1. 仓库里的 JSON / YAML 清单都是合法的，且 cordis 补丁引用的包名与 package.json 一致；
  *   2. 所有模块都能通过语法检查，纯逻辑模块还能真的被 import；
  *   3. **没有硬编码的翻译词典** —— 这是本插件的核心承诺：译文只能来自
- *      DSH 内置的 llm 服务 + local-cache.json，不能藏在源码里。
+ *      backend 选定的翻译后端（bing / api / llm）+ local-cache.json，不能藏在源码里。
  */
 
 import { execFileSync } from 'node:child_process';

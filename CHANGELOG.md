@@ -2,6 +2,21 @@
 
 本文件记录所有值得注意的变更。版本号遵循[语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [2.3.2] — 2026-11-15
+
+**文档与自我介绍对齐三后端，不再说「只用 DSH 的模型、不调用第三方 API」。**
+
+### 变更
+
+- 插件自身的名称/描述（`locale/zh.json`、`locale/en.json`）与 `package.json` 的
+  `description` 改成「微软翻译（免费）/ 自定义 API / DSH 里的模型」三选一。
+- `README.md`：开头的介绍、英文摘要、「效果与保证」「翻译」「配置」「安全与副作用」
+  各段按当前实现重写；手动安装示例的版本号改成占位符；修掉「生效时机」段落里
+  混进去的字面转义符。
+- `CONTRIBUTING.md`、`scripts/check.mjs`、`lib/index.js` 头注释与 `Config` 字段说明
+  同步更新；仅 `backend: "llm"` 才生效的字段（`provider` / `model` /
+  `fallbackToAccount` / `retryDelayMs`）都标注清楚。
+
 ## [2.3.1] — 2026-11-15
 
 **修掉「卡片是白板」的样式 bug，外观对齐「设置 → 模型」页。**

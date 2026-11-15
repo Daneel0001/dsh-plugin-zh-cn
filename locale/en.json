@@ -1,6 +1,6 @@
 {
   "meta": {
     "title": "Plugin Chinese Locale",
-    "description": "Translate installed plugin titles and descriptions into Simplified Chinese at startup with DSH's own model, cached locally."
+    "description": "Translate installed plugin titles and descriptions into Simplified Chinese via Bing, any OpenAI-compatible API, or DSH's own model; cached locally."
   }
 }

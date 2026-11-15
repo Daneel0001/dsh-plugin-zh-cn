@@ -2,9 +2,11 @@
 
 [![](https://img.shields.io/badge/powered_by-dsh-4D6BFE?style=flat-square&logo=deepseek&logoColor=white)](https://github.com/deepseek-ai/deepseek-harness)
 
-把 [DeepSeek Harness](https://github.com/deepseek-ai)（DSH）**已安装插件**的显示名与描述，在启动时用 **DSH 设置里选定的模型**（`agentDefaultModel`）自动翻译成简体中文，并缓存到本地。
+把 [DeepSeek Harness](https://github.com/deepseek-ai)（DSH）**已安装插件**的显示名与描述，在启动时翻译成简体中文并缓存到本地。
+翻译后端可以选：**微软翻译免费接口**（默认，不用账号、不用 Key）、**任意 OpenAI 兼容 API**，或 **DSH 里的模型**。
 
-**没有硬编码词典，不调用任何第三方翻译 API，不碰 DOM。**
+**没有硬编码词典，也不碰 DOM。**译文按 `{ en, zh }` 投给 DSH 自己的 `resolveText()`，
+所以在英文界面下显示结果与安装前逐字相同。
 
 ```
 安装前   billion-context      A context-compression plugin — small context windows…
@@ -14,8 +16,9 @@
 > **English**: `dsh-plugin-zh-cn` renders installed DSH plugin titles and descriptions in
 > Simplified Chinese. At startup it reads a local translation cache, projects
 > `{ en }` plugin metadata into `{ en, zh }` so DSH's own `resolveText()` renders Chinese,
-> and asks DSH's built-in `llm` service to translate any installed plugin the cache does not
-> know yet. No third-party API, no built-in dictionary, no DOM manipulation. See
+> and translates any installed plugin the cache does not know yet — with the free Bing
+> translator (default, no account or key), any OpenAI-compatible API, or DSH's built-in
+> `llm` service. No built-in dictionary, no DOM manipulation. See
 > [English summary](#english-summary).
 
 ---
@@ -32,8 +35,8 @@
   和元数据毫无交集。
 - **不动别人的翻译**：元数据里已经带 `zh` 的插件（含全部官方内置插件）一律跳过，
   一个字节都不改。已经自带中文的内置选项（「语音输入」「终端」……）自然不会被碰。
-- **失败即原样**：模型报错、超时、返回非法 JSON、译文不是中文 —— 任何一条都只让
-  该插件保留英文，并记一条警告，**设置界面不会崩溃、不会白屏**。
+- **失败即原样**：翻译后端报错、超时、网络断开、返回非法 JSON、译文不是中文 —— 任何一条
+  都只让该插件保留英文，并记一条警告，**设置界面不会崩溃、不会白屏**。
 - **严格模式（默认开）**：名称与描述都拿到译文才写入缓存，绝不出现半中半英。
 - **可完全卸载**：插件被禁用或移除时，注入层通过 `ctx.effect` 的清理回调原样撤销。
 
@@ -54,10 +57,10 @@ github:Daneel0001/dsh-plugin-zh-cn
 
 ```powershell
 # 1. 把 tgz 放进 profile 的 plugins 目录
-Copy-Item .\dsh-plugin-zh-cn-2.0.0.tgz "$env:DSH_PROFILE_DIR\plugins\"
+Copy-Item .\dsh-plugin-zh-cn-<version>.tgz "$env:DSH_PROFILE_DIR\plugins\"
 
 # 2. 在 <profile>/package.json 里登记两处
-#    dependencies:        "dsh-plugin-zh-cn": "file:<profile>/plugins/dsh-plugin-zh-cn-2.0.0.tgz"
+#    dependencies:        "dsh-plugin-zh-cn": "file:<profile>/plugins/dsh-plugin-zh-cn-<version>.tgz"
 #    dsh.profile.bundles: 追加 "dsh-plugin-zh-cn"
 
 # 3. 用 pnpm 真正安装（这一步才会写入 lockfile 与 .modules.yaml）
@@ -68,7 +71,11 @@ node "$pnpm" install --dir "$env:DSH_PROFILE_DIR"
 > DSH 组合 profile 时以 pnpm 的安装结果为依据，未进入 `pnpm-lock.yaml` /
 > `node_modules/.modules.yaml` 的包会被静默跳过。
 
-### 生效时机\n\n> **换了插件版本之后必须重启 DSH。** 实测在运行中的实例里用「禁用 → 启用」热重载插件，**不会**让 Node 重新加载模块（ESM 模块缓存命中），跑的还是旧代码；只有重启 Harness 才会真正换版本。\n\n- **第一次启动**：已缓存过的插件**立刻**就是中文；新发现的插件在后台翻译，
+### 生效时机
+
+> **换了插件版本之后必须重启 DSH。** 实测在运行中的实例里用「禁用 → 启用」热重载插件，**不会**让 Node 重新加载模块（ESM 模块缓存命中），跑的还是旧代码；只有重启 Harness 才会真正换版本。
+
+- **第一次启动**：已缓存过的插件**立刻**就是中文；新发现的插件在后台翻译，
   本次启动仍显示英文。
 - **第二次启动**：上次翻好的插件直接命中缓存，**一个请求都不发**。
 - **想在第一次启动里就看到中文**：把一份现成的 `local-cache.json` 交给 `seedFiles`
@@ -162,8 +169,8 @@ resolveText(text) {
 | `api` | 任意 OpenAI 兼容接口 | `apiBaseUrl` + `apiKey` + `apiModel` |
 | `llm` | DSH 自己的 `llm` 服务（2.2.0 及以前的行为） | 可留空跟随「设置 → 模型」 |
 
-用 `bing` / `api` 时一次请求直接拿到译文；用 `llm` 时把名称与描述一起交给模型，
-要求它只回一个 JSON：
+`bing` 把名称与描述分成两次请求直接拿到译文（不需要提示词）；`api` / `llm` 一次请求
+同时把两者交给模型，要求它只回一个 JSON：
 
 ```
 系统提示词（要点）
@@ -172,8 +179,8 @@ resolveText(text) {
   API / Token / MCP / SSH / Git / JSON / LLM 等专有名词照抄不译
 ```
 
-收到回复后会**先校验再落盘**：必须能解析出译文、译文必须真的含中文。
-不满足就当作失败，保留英文原文。
+拿到译文后会**先校验再落盘**：`api` / `llm` 必须能解析出 JSON，且译文必须真的含中文；
+`bing` 直接取返回文本。不满足就当失败，保留英文原文。
 
 ## 配置
 
@@ -197,8 +204,8 @@ resolveText(text) {
     maxTokens: 4096          # 单条翻译输出上限（仅 api / llm 用）
     provider: ''             # 仅 backend: llm 有意义；留空 = 用「设置 → 模型」里的默认模型
     model: ''                # 仅 backend: llm 有意义
-    fallbackToAccount: true  # 仅 backend: llm；默认模型读不到时回退到深寻账号渠道
-    retryDelayMs: 180000     # 没等到可用模型时，隔多久自动重试一轮（毫秒）
+    fallbackToAccount: true  # 仅 backend: llm；默认模型读不到时回退到 DeepSeek 账号渠道
+    retryDelayMs: 180000     # 仅 backend: llm；没等到可用模型/服务时，隔多久自动重试一轮（毫秒）
     cacheFile: ''            # 留空 = <profile>/dsh-plugin-zh-cn/local-cache.json
     seedFiles: []            # 额外的缓存初值（绝对路径），只合并、不覆盖
     maxPerStart: 500         # 每次启动最多新翻几个插件（默认实质上不限，一个全新 profile 也就几百条）
@@ -227,7 +234,9 @@ resolveText(text) {
 - **只读**其它插件的 `package.json`；**不写入**任何其它插件的目录。
 - 唯一会写的文件是 `local-cache.json`（及其 `.tmp`），位置就在插件自己的数据目录。
 - 联网范围只有翻译请求本身：`bing` → `cn.bing.com`（可用 `bingEndpoint` 换地址）；
-  `api` → `apiBaseUrl`；`llm` → DSH 自己的模型调用。不执行外部命令、不改 profile 配置。
+  `api` → `apiBaseUrl`；`llm` → DSH 自己的模型调用。不执行外部命令。
+- 不改 profile 配置：插件页卡片的「保存」走 DSH 自己的 `configForms` / configEditor，
+  由 DSH 写进 `cordis.patch.yml`；插件自己只写 `local-cache.json`。
 - 所有异常都被捕获并降级为一条 `warn` 日志，**不会影响 DSH 启动**。
 
 ## 卸载
@@ -283,14 +292,18 @@ At startup the host half:
    settings UI reads plugin metadata through — projecting `{ en }` into `{ en, zh }`.
    DSH's own `resolveText()` then renders Chinese on a Chinese UI and the original English
    everywhere else. **No DOM node, class, style, or the enable/disable toggle is touched.**
-3. asynchronously scans the installed plugin list and asks DSH's built-in `llm` service
-   (`ctx.get('llm')`, default model from `agentDefaultModel`) to translate any plugin the
-   cache does not know, one request carrying both the name and the description, and
-   expecting `{"name": …, "desc": …}`. Results are merged back into the cache.
+3. asynchronously scans the installed plugin list and translates any plugin the cache does
+   not know yet, with one of three backends (`backend`):
+   `bing` (default — the free Bing translator endpoint, no account or API key),
+   `api` (any OpenAI-compatible endpoint: `apiBaseUrl` + `apiKey` + `apiModel`), or
+   `llm` (DSH's built-in `llm` service, default model from `agentDefaultModel`).
+   `api` / `llm` send name and description in one request and expect
+   `{"name": …, "desc": …}`; results are merged back into the cache.
 
-No third-party translation API, no built-in dictionary, no network calls beyond DSH's own
-model route. Any failure — timeout, bad JSON, non-Chinese output, model error — leaves the
-English original in place and logs a warning.
+No built-in dictionary. The only network traffic is the translation request itself
+(`cn.bing.com`, your `apiBaseUrl`, or DSH's own model route). Any failure — timeout, bad
+JSON, non-Chinese output, network or model error — leaves the English original in place and
+logs a warning.
 
 ## 许可
 
