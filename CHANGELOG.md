@@ -2,6 +2,31 @@
 
 本文件记录所有值得注意的变更。版本号遵循[语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [2.2.0] — 2026-11-15
+
+**插件页真的能配置翻译模型了：补上浏览器侧配置卡片。**
+
+### 修复
+
+- 更正 2.1.0 的错误说法：DSH **不会**因为插件导出 `Config` 就自动在「设置 → 插件」里渲染表单。
+  插件页的 `plugins.bundle.config` / `plugins.row.config` 是给插件自己挂 UI 的扩展点，
+  必须由插件带浏览器侧模块注册卡片（`dsh-gitbash-shell`、`dshmarket`、`dsh-univer-office` 都是这么做的）。
+  只加 `Config` 的结果是：页面上什么入口都没有。
+
+### 新增
+
+- 新增 `./client` 浏览器侧模块（`lib/client.js`，手写 ModuleLoader bundle，无构建步骤），
+  注册 `plugins.bundle.config`（key = `dsh-plugin-zh-cn`），在插件详情页渲染「翻译模型」卡片：
+  - `provider` / `model` 两个输入框（留空跟随「设置 → 模型」里的默认模型）；
+  - 「模型不可用时回退到 DeepSeek 账号」开关（写 `fallbackToAccount`）；
+  - 保存 / 恢复默认；保存走宿主 `configForms` → configEditor，写入本插件行的 `config`。
+- `package.json` 增加 `"./client"` 导出与 `dsh.client`（`platform: "web"`，注入
+  `@deepseek-ai/dsh-client-locale`、`@deepseek-ai/dsh-client-ui-slots`、`@deepseek-ai/dsh-client-ui-settings`）。
+
+### 测试
+
+- `node --check lib/client.js`、`scripts/check.mjs`、`test/acceptance.mjs` 全部通过（60 passed，1 skipped）。
+
 ## [2.1.1] — 2026-11-15
 
 **修复「每次重启都翻不了」的真正原因：启动早期拿不到 `llm` 服务就整轮放弃。**

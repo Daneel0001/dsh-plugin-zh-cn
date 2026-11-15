@@ -169,8 +169,10 @@ resolveText(text) {
 
 ## 配置
 
-插件导出 `Config`（Schemastery schema），所以「设置 → 插件」里这个插件的配置表单就是按下面这些字段渲染的；
-也可以直接写进 profile 的 `cordis.patch.yml`：
+插件导出 `Config`（Schemastery schema）用于校验配置；2.2.0 起还带浏览器侧卡片，
+在「设置 → 插件」→ dsh-plugin-zh-cn 的详情页里可以直接改 `provider`、`model` 和
+`fallbackToAccount`（保存会写回 profile 的 `cordis.patch.yml`，下一轮启动生效）。
+其余字段也可以直接写进 profile 的 `cordis.patch.yml`：
 
 ```yaml
 - id: zh-cn-plugin-locale
@@ -238,13 +240,14 @@ npm test               # 47 项验收测试（含 8 项 apply 集成测试）
 
 ```
 lib/index.js        插件入口：读缓存 → 装注入 → 异步扫描翻译
+lib/client.js       浏览器侧：插件详情页的「翻译模型」配置卡片（2.2.0+）
 lib/inject.js       数据层注入：包装 metaOf / pluginInventory.list（实例 + 原型，动态 this）
 lib/cache.js        local-cache.json 的读取、合并、原子写
 lib/translate.js    llm 调用、提示词、JSON 解析与中文校验
 lib/text.js         LocalizedText 工具与「值不值得翻译」的判定
 locale/*.json       本插件自身的语言字典（自举）
 cordis.patch.yml    bundle 补丁：把插件行插进组合配置树
-test/acceptance.mjs 47 项验收测试
+test/acceptance.mjs 60 项验收测试（另有 1 项按环境跳过）
 scripts/check.mjs   静态自检（CI / prepack）
 examples/           local-cache.json 格式示例
 ```
