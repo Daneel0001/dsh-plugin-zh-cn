@@ -1,7 +1,7 @@
 {
   "name": "dsh-plugin-zh-cn",
-  "version": "2.2.0",
-  "description": "Render installed DeepSeek Harness plugin titles and descriptions in Simplified Chinese, translated at startup by DSH's own LLM service and cached in a local JSON file.",
+  "version": "2.3.0",
+  "description": "Render installed DeepSeek Harness plugin titles and descriptions in Simplified Chinese, using the free Bing translator, a custom OpenAI-compatible API, or DSH's own LLM service; results are cached in a local JSON file.",
   "license": "MIT",
   "author": "dsh-plugin-zh-cn contributors",
   "type": "module",

@@ -154,8 +154,16 @@ resolveText(text) {
 
 ### 3. 翻译
 
-只用 `ctx.get('llm').stream(...)`，模型按「config 显式指定 → 「设置 → 模型」默认模型 →
-账号渠道兜底」的顺序解析。一次请求同时把名称与描述交给模型，要求它只回一个 JSON：
+`backend` 决定用哪个后端，默认 `bing`（微软翻译免费接口，不用账号、不用 Key）：
+
+| backend | 说明 | 需要的配置 |
+| --- | --- | --- |
+| `bing`（默认） | 微软翻译免费网页接口（`cn.bing.com`） | 无 |
+| `api` | 任意 OpenAI 兼容接口 | `apiBaseUrl` + `apiKey` + `apiModel` |
+| `llm` | DSH 自己的 `llm` 服务（2.2.0 及以前的行为） | 可留空跟随「设置 → 模型」 |
+
+用 `bing` / `api` 时一次请求直接拿到译文；用 `llm` 时把名称与描述一起交给模型，
+要求它只回一个 JSON：
 
 ```
 系统提示词（要点）
@@ -164,14 +172,14 @@ resolveText(text) {
   API / Token / MCP / SSH / Git / JSON / LLM 等专有名词照抄不译
 ```
 
-收到回复后会**先校验再落盘**：必须能解析出 JSON、译文必须真的含中文。
+收到回复后会**先校验再落盘**：必须能解析出译文、译文必须真的含中文。
 不满足就当作失败，保留英文原文。
 
 ## 配置
 
 插件导出 `Config`（Schemastery schema）用于校验配置；2.2.0 起还带浏览器侧卡片，
-在「设置 → 插件」→ dsh-plugin-zh-cn 的详情页里可以直接改 `provider`、`model` 和
-`fallbackToAccount`（保存会写回 profile 的 `cordis.patch.yml`，下一轮启动生效）。
+在「设置 → 插件」→ dsh-plugin-zh-cn 的详情页里可以选翻译后端、改字段
+（保存会写回 profile 的 `cordis.patch.yml`，下一轮启动生效）。
 其余字段也可以直接写进 profile 的 `cordis.patch.yml`：
 
 ```yaml
@@ -180,11 +188,16 @@ resolveText(text) {
   config:
     enabled: true            # 总开关
     strict: true             # 名称+描述都有译文才写入缓存
+    backend: bing            # bing（微软翻译，免费）| api（OpenAI 兼容）| llm（DSH 里的模型）
+    bingEndpoint: ''         # 留空 = https://cn.bing.com
+    apiBaseUrl: ''           # 留空 = https://api.deepseek.com/v1（含 /v1）
+    apiKey: ''               # backend: api 时必填
+    apiModel: ''             # 留空 = deepseek-chat
     timeoutMs: 60000         # 单条翻译超时（描述很长的插件要给足时间）
-    maxTokens: 4096          # 单条翻译输出上限（推理型模型可能先吐思考再给 JSON）
-    provider: ''             # 留空 = 用「设置 → 模型」里的默认模型；想固定用 DSH 账号 API 就填 deepseek-account
-    model: ''                # 与 deepseek-account 搭配时填 deepseek-flash
-    fallbackToAccount: true  # 默认模型读不到时，自动回退到 deepseek-account/deepseek-flash
+    maxTokens: 4096          # 单条翻译输出上限（仅 api / llm 用）
+    provider: ''             # 仅 backend: llm 有意义；留空 = 用「设置 → 模型」里的默认模型
+    model: ''                # 仅 backend: llm 有意义
+    fallbackToAccount: true  # 仅 backend: llm；默认模型读不到时回退到深寻账号渠道
     retryDelayMs: 180000     # 没等到可用模型时，隔多久自动重试一轮（毫秒）
     cacheFile: ''            # 留空 = <profile>/dsh-plugin-zh-cn/local-cache.json
     seedFiles: []            # 额外的缓存初值（绝对路径），只合并、不覆盖
@@ -195,11 +208,15 @@ resolveText(text) {
     debug: false             # 把每条翻译结果写进 debug 日志
 ```
 
-**模型解析顺序**（前一个拿不到才用下一个）：
+**模型解析顺序**（仅 `backend: "llm"` 时适用；前一个拿不到才用下一个）：
 
-1. config 里的 `provider` + `model`（显式指定，推荐填 `deepseek-account` / `deepseek-flash`）；
+1. config 里的 `provider` + `model`（显式指定）；
 2. 「设置 → 模型」里选定的默认模型；
 3. `fallbackToAccount: true`（默认）时，回退到 DSH 账号渠道的 `deepseek-account/deepseek-flash`。
+
+注意：DSH 账号渠道只对自己允许的目的地签发 token（`resolveToken(endpoint)`），
+插件发起的请求可能得到 `ACCOUNT_SIGN_IN_REQUIRED`（实测 `dsh-kb-lite` 必失败）。
+遇到这种情况改用默认的 `backend: "bing"` 或 `backend: "api"` 即可。
 
 `fallbackToAccount` 是 2.1.0 加的：以前启动早期读不到默认模型，整轮翻译会一条都不翻（缓存里的
 `lastRun` 停在 `model: "(未就绪)"`、`translated: 0`）。现在第 3 级兜底保证能翻；实在没模型时，
@@ -209,7 +226,8 @@ resolveText(text) {
 
 - **只读**其它插件的 `package.json`；**不写入**任何其它插件的目录。
 - 唯一会写的文件是 `local-cache.json`（及其 `.tmp`），位置就在插件自己的数据目录。
-- 不联网（除 DSH 自己的模型调用外）、不执行外部命令、不改 profile 配置。
+- 联网范围只有翻译请求本身：`bing` → `cn.bing.com`（可用 `bingEndpoint` 换地址）；
+  `api` → `apiBaseUrl`；`llm` → DSH 自己的模型调用。不执行外部命令、不改 profile 配置。
 - 所有异常都被捕获并降级为一条 `warn` 日志，**不会影响 DSH 启动**。
 
 ## 卸载
@@ -226,10 +244,10 @@ resolveText(text) {
 npm run check          # 静态自检：清单、语法、可导入性，以及「不许硬编码词典」
 npm run check:syntax   # 只做语法检查
 
-npm test               # 47 项验收测试（含 8 项 apply 集成测试）
+npm test               # 60 项验收测试（含 8 项 apply 集成测试）
 ```
 
-`npm test` 零依赖，在源码目录里就能跑完 47 项（含 8 项 `apply` 端到端集成测试）。
+`npm test` 零依赖，在源码目录里就能跑完 60 项（含 8 项 `apply` 端到端集成测试）。
 测试全部在系统临时目录里工作，**永远不会碰真实 profile**。
 
 导出：`apply`、`resolveConfig`、`DEFAULTS`、`inject`、`name`，以及供测试使用的纯函数
@@ -240,10 +258,10 @@ npm test               # 47 项验收测试（含 8 项 apply 集成测试）
 
 ```
 lib/index.js        插件入口：读缓存 → 装注入 → 异步扫描翻译
-lib/client.js       浏览器侧：插件详情页的「翻译模型」配置卡片（2.2.0+）
+lib/client.js       浏览器侧：插件详情页的「翻译模型」卡片（卡片行 + 编辑，2.2.0+）
 lib/inject.js       数据层注入：包装 metaOf / pluginInventory.list（实例 + 原型，动态 this）
 lib/cache.js        local-cache.json 的读取、合并、原子写
-lib/translate.js    llm 调用、提示词、JSON 解析与中文校验
+lib/translate.js   三种后端：Bing 免费翻译 / OpenAI 兼容 API / DSH llm；提示词、JSON 解析与中文校验
 lib/text.js         LocalizedText 工具与「值不值得翻译」的判定
 locale/*.json       本插件自身的语言字典（自举）
 cordis.patch.yml    bundle 补丁：把插件行插进组合配置树

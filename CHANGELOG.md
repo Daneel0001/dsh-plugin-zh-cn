@@ -2,6 +2,34 @@
 
 本文件记录所有值得注意的变更。版本号遵循[语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [2.3.0] — 2026-11-15
+
+**翻译后端可以选了：微软翻译（免费）/ 自定义 API / DSH 里的模型。账号渠道翻译不了的问题绕开了。**
+
+### 新增
+
+- 三种可切换的翻译后端（`backend` 配置项，默认 `bing`）：
+  - `bing`（默认）—— 微软翻译免费接口（`cn.bing.com`），不用账号、不用 API Key；
+  - `api` —— 任意 OpenAI 兼容接口（`apiBaseUrl` + `apiKey` + `apiModel`，默认 DeepSeek）；
+  - `llm` —— 仍走 DSH 的 `llm` 服务（旧行为，模型解析与回退逻辑不变）。
+- `lib/translate.js` 新增 `translateViaBing()`、`translateViaApi()`、`normalizeEndpoint()`，
+  以及常量 `DEFAULT_BING_ENDPOINT`、`DEFAULT_API_BASE_URL`、`DEFAULT_API_MODEL`、`BING_USER_AGENT`；
+  Bing 的 `IG` / `IID` / `params_AbusePreventionHelper` 会话按 5 分钟缓存，401/403/429 自动换会话重试。
+- 配置项：`backend`、`bingEndpoint`、`apiBaseUrl`、`apiKey`、`apiModel`（均带默认值，`Config` 同步校验）。
+
+### 变更
+
+- 插件详情页的配置卡片改成「设置 → 模型」那种样式：一行一个后端（图标 + 名称 + 说明 + 「编辑」按钮），
+  点「编辑」展开该后端的字段，选中行高亮；保存 / 恢复默认写在卡片底部。
+- 只有 `backend: "llm"` 才会等待 `llm` 服务与默认模型（`bing` / `api` 启动即可翻，不再受启动顺序影响）。
+- `api` 缺 API Key 时不再空转重试：写 `phase: "no-api-key"` 快照并提示。
+
+### 说明
+
+- 为什么加 `bing` / `api`：DSH 账号渠道只对自己允许的目的地签发 token
+  （`resolveToken(endpoint)`），插件发起的请求会得到 `ACCOUNT_SIGN_IN_REQUIRED`，
+  所以「用 DSH 账号翻译」对个别插件（实测 `dsh-kb-lite`）必然失败。
+
 ## [2.2.0] — 2026-11-15
 
 **插件页真的能配置翻译模型了：补上浏览器侧配置卡片。**

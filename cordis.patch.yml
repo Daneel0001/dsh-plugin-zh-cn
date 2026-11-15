@@ -1,13 +1,14 @@
 # dsh-plugin-zh-cn bundle patch.
 #
-# 只登记宿主半边 —— 本插件不需要任何浏览器侧模块。
+# 宿主半边 + 浏览器侧卡片：`package.json` 的 `dsh.client` 会加载 lib/client.js，
+# 在「设置 → 插件」→ 本插件详情页渲染「翻译模型」卡片（选后端 / 改字段 / 保存）。
 #
-# 启动时它做三件事：
+# 宿主半边在启动时做三件事：
 #   1. 同步读取 <profile>/dsh-plugin-zh-cn/local-cache.json，建好翻译表；
 #   2. 在数据层把插件元数据从 `{ en }` 补成 `{ en, zh }`
 #      （包装 pluginPackages.metaOf 与 pluginInventory.list，**不碰 DOM**）；
-#   3. 异步扫描「已安装插件」，对缓存里没有的英文插件调用 DSH 内置的 llm 服务翻译，
-#      结果合并写回缓存；下次启动即为已翻译状态。
+#   3. 异步扫描「已安装插件」，对缓存里没有的英文插件调用选定后端翻译
+#      （默认 bing 免费接口），结果合并写回缓存；下次启动即为已翻译状态。
 #
 # 界面里的中文由 DSH 自己的 dsh-client-locale `resolveText()` 按当前语言取出，
 # 因此英文界面的显示结果与安装本插件之前逐字相同。
@@ -15,9 +16,10 @@
 - insert:
     - id: zh-cn-plugin-locale
       name: dsh-plugin-zh-cn
-      # 模板默认配置。想固定用 DSH 账号 API 翻译，把下面两行改成：
-      #   provider: deepseek-account
-      #   model: deepseek-flash
-      # 留空则跟随「设置 → 模型」里的默认模型；读不到时由 fallbackToAccount 兜底。
+      # 模板默认配置。backend 可选：
+      #   bing（默认，微软翻译免费接口，不用账号/Key）
+      #   api （自定义 OpenAI 兼容接口，需要 apiBaseUrl + apiKey + apiModel）
+      #   llm （DSH 里的模型；账号渠道可能对插件请求返回 ACCOUNT_SIGN_IN_REQUIRED）
       config:
+        backend: bing
         fallbackToAccount: true

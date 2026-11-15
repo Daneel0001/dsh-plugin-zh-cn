@@ -709,7 +709,7 @@ if (applyModule !== undefined) {
         selection: { provider: 'deepseek', model: 'deepseek-chat' },
         profileDir: dir,
       });
-      apply(ctx, { cacheFile: join(dir, CACHE_FILE_NAME), delayMs: 0 });
+      apply(ctx, { backend: 'llm', cacheFile: join(dir, CACHE_FILE_NAME), delayMs: 0 });
 
       assert.equal(
         await waitFor(() => entryCount(join(dir, CACHE_FILE_NAME)) >= 2),
@@ -737,7 +737,7 @@ if (applyModule !== undefined) {
       const first = makeLlm(goodReply);
       apply(
         makeCtx({ inventory: new FakeInventory(pluginEntries), llm: first, selection: { provider: 'p', model: 'm' }, profileDir: dir }),
-        { cacheFile: join(dir, CACHE_FILE_NAME), delayMs: 0 },
+        { backend: 'llm', cacheFile: join(dir, CACHE_FILE_NAME), delayMs: 0 },
       );
       assert.equal(await waitFor(() => entryCount(join(dir, CACHE_FILE_NAME)) >= 2), true);
       assert.equal(first.calls.length, 2);
@@ -765,7 +765,7 @@ if (applyModule !== undefined) {
       const llm = makeLlm(goodReply, { fail: { code: 'rate-limited', message: 'slow down' } });
       const logger = makeLogger();
       const ctx = makeCtx({ inventory, llm, selection: { provider: 'p', model: 'm' }, profileDir: dir, logger });
-      apply(ctx, { cacheFile: join(dir, CACHE_FILE_NAME), delayMs: 0 });
+      apply(ctx, { backend: 'llm', cacheFile: join(dir, CACHE_FILE_NAME), delayMs: 0 });
 
       await new Promise((done) => setTimeout(done, 400));
       const snapshot = await inventory.list();
@@ -821,6 +821,7 @@ if (applyModule !== undefined) {
       const inventory = new FakeInventory(pluginEntries);
       const llm = makeLlm(goodReply);
       apply(makeCtx({ inventory, llm, selection: { provider: 'p', model: 'm' }, profileDir: dir }), {
+        backend: 'llm',
         cacheFile: join(dir, 'runtime', CACHE_FILE_NAME),
         seedFiles: [seed],
         delayMs: 0,
@@ -845,7 +846,7 @@ if (applyModule !== undefined) {
       const logger = makeLogger();
       // 没有 pluginPackages / pluginInventory / llm / agentDefaultModel 的裸 ctx：
       // 插件必须安静降级成「什么都不做」，而不是把异常抛回 DSH 的启动链路。
-      apply(makeCtx({ profileDir: dir, logger }), { cacheFile: join(dir, CACHE_FILE_NAME), delayMs: 0 });
+      apply(makeCtx({ profileDir: dir, logger }), { backend: 'llm', cacheFile: join(dir, CACHE_FILE_NAME), delayMs: 0 });
       await new Promise((done) => setTimeout(done, 200));
       assert.equal(entryCount(join(dir, CACHE_FILE_NAME)), 0, '没有任何服务时不应该翻译出任何条目');
       assert.equal(
@@ -869,6 +870,7 @@ if (applyModule !== undefined) {
       const inventory = new FakeInventory(pluginEntries);
       const llm = makeLlm(goodReply);
       apply(makeCtx({ inventory, llm, selection: { provider: 'p', model: 'm' }, profileDir: dir }), {
+        backend: 'llm',
         cacheFile: join(dir, CACHE_FILE_NAME),
         maxPerStart: 1,
         delayMs: 0,
@@ -882,7 +884,7 @@ if (applyModule !== undefined) {
       const second = makeLlm(goodReply);
       apply(
         makeCtx({ inventory: new FakeInventory(pluginEntries), llm: second, selection: { provider: 'p', model: 'm' }, profileDir: dir }),
-        { cacheFile: join(dir, CACHE_FILE_NAME), maxPerStart: 5, delayMs: 0 },
+        { backend: 'llm', cacheFile: join(dir, CACHE_FILE_NAME), maxPerStart: 5, delayMs: 0 },
       );
       assert.equal(await waitFor(() => Object.keys(JSON.parse(readFileSync(join(dir, CACHE_FILE_NAME), 'utf8')).entries).length >= 2), true);
       assert.equal(second.calls.length, 1, '已缓存的那条不该被重翻');
@@ -1027,7 +1029,7 @@ if (applyModule !== undefined) {
       selection: { provider: 'deepseek', model: 'deepseek-chat' },
       profileDir: dir,
     });
-    apply(ctx, { cacheFile, delayMs: 0 });
+    apply(ctx, { backend: 'llm', cacheFile, delayMs: 0 });
 
     const stored = await waitFor(() => {
       try {
