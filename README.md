@@ -167,7 +167,7 @@ resolveText(text) {
 | --- | --- | --- |
 | `bing`（默认） | 微软翻译免费网页接口（`cn.bing.com`） | 无 |
 | `api` | 任意 OpenAI 兼容接口 | `apiBaseUrl` + `apiKey` + `apiModel` |
-| `llm` | DSH 自己的 `llm` 服务（2.2.0 及以前的行为） | 可留空跟随「设置 → 模型」 |
+| `llm` | DeepSeek 账号：用「设置 → 模型」里选中的模型 | 无 |
 
 `bing` 把名称与描述分成两次请求直接拿到译文（不需要提示词）；`api` / `llm` 一次请求
 同时把两者交给模型，要求它只回一个 JSON：
@@ -185,8 +185,16 @@ resolveText(text) {
 ## 配置
 
 插件导出 `Config`（Schemastery schema）用于校验配置；2.2.0 起还带浏览器侧卡片，
-在「设置 → 插件」→ dsh-plugin-zh-cn 的详情页里可以选翻译后端、改字段
+在「设置 → 插件」→ dsh-plugin-zh-cn 的详情页里选翻译后端
 （保存会写回 profile 的 `cordis.patch.yml`，下一轮启动生效）。
+
+卡片上是三行：
+
+| 行 | 可改的字段 |
+| --- | --- |
+| 微软翻译 | 翻译页地址（一般不用改） |
+| 自定义 API | Base URL / API Key / 模型名 |
+| DeepSeek 账号 | **没有字段** —— 直接用「设置 → 模型」里选中的模型 |
 其余字段也可以直接写进 profile 的 `cordis.patch.yml`：
 
 ```yaml
@@ -202,9 +210,9 @@ resolveText(text) {
     apiModel: ''             # 留空 = deepseek-chat
     timeoutMs: 60000         # 单条翻译超时（描述很长的插件要给足时间）
     maxTokens: 4096          # 单条翻译输出上限（仅 api / llm 用）
-    provider: ''             # 仅 backend: llm 有意义；留空 = 用「设置 → 模型」里的默认模型
-    model: ''                # 仅 backend: llm 有意义
-    fallbackToAccount: true  # 仅 backend: llm；默认模型读不到时回退到 DeepSeek 账号渠道
+    provider: ''             # 兼容旧配置，卡片已不暴露；llm 后端留空 = 跟随「设置 → 模型」
+    model: ''                # 同上
+    fallbackToAccount: true  # 同上；llm 后端本身就是账号渠道，默认开启
     retryDelayMs: 180000     # 仅 backend: llm；没等到可用模型/服务时，隔多久自动重试一轮（毫秒）
     cacheFile: ''            # 留空 = <profile>/dsh-plugin-zh-cn/local-cache.json
     seedFiles: []            # 额外的缓存初值（绝对路径），只合并、不覆盖
