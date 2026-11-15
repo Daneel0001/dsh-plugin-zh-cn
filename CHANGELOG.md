@@ -2,6 +2,23 @@
 
 本文件记录所有值得注意的变更。版本号遵循[语义化版本](https://semver.org/lang/zh-CN/)。
 
+## [2.1.1] — 2026-11-15
+
+**修复「每次重启都翻不了」的真正原因：启动早期拿不到 `llm` 服务就整轮放弃。**
+
+### 修复
+
+- `runTranslationPass` 不再在 `ctx.get('llm') === undefined` 时直接 return，
+  改为用新增的 `waitForService()` 轮询等 `llm` 注册（最多约 20 秒）。
+- 等不到时写 `phase: "no-llm"` 快照，并按 `retryDelayMs` 自动重试（与 no-model 同一套重试）。
+- 这解释并修掉了 `local-cache.json` 里长期出现的 `phase: "start"`、`translated: 0`：
+  之前每次启动插件都抢在 `llm` 注册之前跑完扫描，缓存里只剩英文。
+
+### 测试
+
+- 新增 1 项：`llm` 晚注册时 `waitForService` 能等到它。
+- **60 项通过 + 1 项按环境跳过**。
+
 ## [2.1.0] — 2026-11-14
 
 **插件页可以配置翻译模型了；「未就绪」不再让整轮翻译白跑。**

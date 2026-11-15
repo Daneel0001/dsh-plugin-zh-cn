@@ -828,6 +828,7 @@ if (applyModule !== undefined) {
 
       const snapshot = await inventory.list();
       assert.deepEqual(snapshot.entries[0].meta.title, { en: 'billion-context', zh: '十亿级上下文插件' });
+      assert.equal(await waitFor(() => llm.calls.length >= 1), true, 'dsh-browser 应当被送去翻译');
       assert.equal(llm.calls.length, 1, 'only dsh-browser still needs a translation');
       assert.deepEqual(englishFingerprint(pluginEntries[0]), {
         title: 'billion-context',
@@ -969,6 +970,16 @@ if (applyModule !== undefined) {
     const got = applyModule.resolveSelection(ctx, { provider: 'deepseek-account', model: 'deepseek-flash' });
     assert.equal(got.provider, 'deepseek-account');
     assert.equal(got.model, 'deepseek-flash');
+  });
+
+  await test('waitForService waits for a late-registered service instead of giving up', async () => {
+    let calls = 0;
+    const ctx = {
+      get: (name) => (name === 'llm' && ++calls >= 3 ? { stream() {} } : undefined),
+    };
+    const got = await applyModule.waitForService(ctx, 'llm', { attempts: 5, intervalMs: 5 });
+    assert.ok(got !== undefined, '应当等到 llm 服务注册出来');
+    assert.ok(calls >= 3, '应当轮询到服务出现');
   });
 
   if (applyModule.Config === undefined) {
